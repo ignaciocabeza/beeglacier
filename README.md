@@ -1,14 +1,13 @@
-beeglacier
-==========
+# BeeGlacier
 
 This is an alpha test application for managing Amazon Glacier Storage made with Beeware
 
-..image:: https://i.ibb.co/wssfmDJ/Screenshot-2020-02-12-at-17-41-19.png
+![App](https://i.ibb.co/wssfmDJ/Screenshot-2020-02-12-at-17-41-19.png "BeeGlacier")
 
 ## setup
 
 - create virtual enviroment
-- pip install -r requirements.txt
+- pip install -r requirements.txt (for development)
 - briefcase dev
 
 ## To-do
@@ -21,6 +20,7 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 - add vault files viewer
 - stop and resume upload
 - code new vault button
+- move dbsqlite database to another path (if app is updated, database is overwritten)
 
 ## Breware Info
 
@@ -28,8 +28,6 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 `The BeeWare Project`_. **If you want to see more tools like Briefcase, please
 consider** `becoming a financial member of BeeWare`_.
 
-Amazon Glacier Backups
-
-.. _`Briefcase`: https://github.com/beeware/briefcase
-.. _`The BeeWare Project`: https://beeware.org/
-.. _`becoming a financial member of BeeWare`: https://beeware.org/contributing/membership
+`Briefcase`: https://github.com/beeware/briefcase
+`The BeeWare Project`: https://beeware.org/
+`becoming a financial member of BeeWare`: https://beeware.org/contributing/membership
