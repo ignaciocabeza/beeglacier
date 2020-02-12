@@ -101,7 +101,7 @@ class Glacier():
 
     def upload(self, vault_name, file_name, arc_desc, part_size, num_threads, upload_id):
         self.glacier = self._get_client()
-
+        
         if not math.log2(part_size).is_integer():
             raise ValueError('part-size must be a power of 2')
         if part_size < 1 or part_size > 4096:

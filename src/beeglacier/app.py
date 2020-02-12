@@ -1,78 +1,93 @@
 """
 Amazon Glacier Backups
 """
+import asyncio
+import os
+from pathlib import Path
+import threading
+
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-from .aws import Glacier
 import concurrent.futures
+
+from .aws import Glacier
 from .db import DB
 from .components.form import Form
 
-from pathlib import Path
-import os
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
+HEADERS = ['vaultname','numberofarchives','sizeinbytes']
 
 class beeglacier(toga.App):
 
     glacier_instance = None
     vault_table = None
-    headers = ['vaultname','numberofarchives','sizeinbytes']
+    
     account_id = None
     access_key = None
     secret_key = None
     region_name = None
-
-    def create_data_vaults_table(self):
-        self.glacier_instance = Glacier(self.account_id,
-                                        self.access_key,
-                                        self.secret_key,
-                                        self.region_name)
-
-        #table parameters
-        data = []
-
-        #get vaults
-        vaults_response = self.glacier_instance.list_vaults()
-        print("1st response")
-        vaults = vaults_response["VaultList"]
-        while vaults:
-            
-            # insert vault to data
-            for vault in vaults:
-                new_row = { key.lower():value for (key,value) in vault.items() if key.lower() in self.headers }
-                new_row['sizeinbytes'] = round(new_row['sizeinbytes']/1024/1024,2)
-                data.append(new_row)
-
-            # obtain the next page of vaults
-            if 'Marker' in vaults_response.keys():
-                vaults_response = self.glacier_instance.list_vaults(marker=vaults_response['Marker'])
-                vaults = vaults_response["VaultList"]
-                print("other responses")
-            else:
-                vaults = []
-
-        return data
+    data = []
 
     def callback_row_selected(self, table, row):
         self.input_vault.value = row.vaultname
 
     def create_vaults_table(self, container):
-        
         #create table control
-        self.vaults_table = toga.Table(self.headers, data=[], style=Pack(height=300,direction=COLUMN), on_select=self.callback_row_selected)
+        self.vaults_table = toga.Table(HEADERS, data=[], style=Pack(height=300,direction=COLUMN), on_select=self.callback_row_selected)
         container.add(self.vaults_table)
 
-    def refresh_vaults(self, widget):
-        widget.title = "Loading..."
-        data = self.create_data_vaults_table()
+    def create_data_vaults_table(self):
+
+        db = DB(DB_PATH)
+        account_id, access_key, secret_key, region_name = db.get_account()
+        glacier_instance = Glacier(account_id,
+                                access_key,
+                                secret_key,
+                                region_name)
+
+        #get vaults
+        data = []
+        vaults_response = glacier_instance.list_vaults()
+        print("1st response")
+        vaults = vaults_response["VaultList"]
+        while vaults:
+            # insert vault to data
+            for vault in vaults:
+                new_row = { key.lower():value for (key,value) in vault.items() if key.lower() in HEADERS }
+                new_row['sizeinbytes'] = round(new_row['sizeinbytes']/1024/1024,2)
+                data.append(new_row)
+
+            # obtain the next page of vaults
+            if 'Marker' in vaults_response.keys():
+                vaults_response = glacier_instance.list_vaults(marker=vaults_response['Marker'])
+                vaults = vaults_response["VaultList"]
+                print("other responses")
+            else:
+                vaults = []
         self.vaults_table.data = data
-        widget.title = "Refresh"
+        self.refresh_vaults_button.label = "Refresh Vaults"
+        self.refresh_vaults_button.refresh()
+        
+        return data
+
+    def refresh_vaults(self, button, **kwargs):
+
+        self.refresh_vaults_button.label = "Loading...     "
+        self.refresh_vaults_button.refresh()
+        
+        #with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        #    executor.submit(self.create_data_vaults_table,1)
+        x = threading.Thread(target=self.create_data_vaults_table, args=())
+        threads = list()
+        threads.append(x)
+        x.start()
+
+        print("termina")
+        
 
     def create_vault(self, widget):
-        import pdb; pdb.set_trace()
         self.app_box.style.visibility = 'hidden'
-        self.app_box.style.update()
         self.app_box.refresh()
         print ("create vault")
 
@@ -100,7 +115,12 @@ class beeglacier(toga.App):
     def save_credentials_box(self):
         
         fields = [
-            {'name': 'account_id', 'label': 'Account ID:', 'value': self.account_id },
+            {
+                'name': 'account_id', 
+                'label': 'Account ID:', 
+                'value': self.account_id, 
+                'validate': ['notnull'],
+            },
             {'name': 'access_key', 'label': 'Access Key:', 'value': self.access_key },
             {'name': 'secret_key', 'label': 'Secret Key:', 'value': self.secret_key },
             {'name': 'region_name', 'label': 'Region Name:', 'value': self.region_name },
@@ -135,12 +155,12 @@ class beeglacier(toga.App):
         self.app_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
 
         # -- nav
-        nav_box = toga.Box(style=Pack(direction=ROW, flex=1, padding=10))
-        refresh_vaults_button = toga.Button('Refresh Vaults', on_press=self.refresh_vaults)
-        nav_box.add(refresh_vaults_button)
+        self.nav_box = toga.Box(style=Pack(direction=ROW, flex=1, padding=10))
+        self.refresh_vaults_button = toga.Button('Refresh Vaults', on_press=self.refresh_vaults)
+        self.nav_box.add(self.refresh_vaults_button)
         create_vault_button = toga.Button('New Vault', on_press=self.create_vault)
-        nav_box.add(create_vault_button)
-        self.app_box.add(nav_box)
+        self.nav_box.add(create_vault_button)
+        self.app_box.add(self.nav_box)
 
         # -- table
         list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
@@ -166,8 +186,6 @@ class beeglacier(toga.App):
         #build and show main
         self.main_window.content = main_box
         self.main_window.show()
-
-        
 
 def main():
     return beeglacier()
