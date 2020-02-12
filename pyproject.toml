@@ -15,7 +15,10 @@ formal_name = "beeglacier"
 description = "Amazon Glacier Backups"
 icon = "src/beeglacier/resources/beeglacier"
 sources = ['src/beeglacier']
-requires = []
+requires = [
+    'boto3==1.11.14',
+    'botocore==1.14.14',
+]
 
 
 [tool.briefcase.app.beeglacier.macOS]
