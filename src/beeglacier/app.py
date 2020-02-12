@@ -9,7 +9,9 @@ import concurrent.futures
 from .db import DB
 from .components.form import Form
 
-DB_PATH = 'db.sqlite'
+from pathlib import Path
+import os
+DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 
 class beeglacier(toga.App):
 
