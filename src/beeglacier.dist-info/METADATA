@@ -1,0 +1,9 @@
+Metadata-Version: 2.1
+Name: beeglacier
+Formal-Name: beeglacier
+App-ID: com.ignaciocabeza.beeglacier
+Version: 0.0.1
+Home-page: https://ignaciocabeza.com/beeglacier
+Author: Ignacio Cabeza
+Author-email: ignaciocabeza@gmail.com
+Summary: Amazon Glacier Backups

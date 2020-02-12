@@ -1,0 +1,45 @@
+[build-system]
+requires = ["briefcase"]
+
+[tool.briefcase]
+project_name = "beeglacier"
+bundle = "com.ignaciocabeza"
+version = "0.0.1"
+url = "https://ignaciocabeza.com/beeglacier"
+license = "Other"
+author = 'Ignacio Cabeza'
+author_email = "ignaciocabeza@gmail.com"
+
+[tool.briefcase.app.beeglacier]
+formal_name = "beeglacier"
+description = "Amazon Glacier Backups"
+icon = "src/beeglacier/resources/beeglacier"
+sources = ['src/beeglacier']
+requires = []
+
+
+[tool.briefcase.app.beeglacier.macOS]
+requires = [
+    'toga-cocoa>=0.3.0.dev18',
+]
+
+[tool.briefcase.app.beeglacier.linux]
+requires = [
+    'toga-gtk>=0.3.0.dev18',
+]
+
+[tool.briefcase.app.beeglacier.windows]
+requires = [
+    'toga-winforms>=0.3.0.dev18',
+]
+
+# Mobile deployments
+[tool.briefcase.app.beeglacier.iOS]
+requires = [
+    'toga-iOS>=0.3.0.dev18',
+]
+
+[tool.briefcase.app.beeglacier.android]
+requires = [
+    'toga-android>=0.3.0.dev18',
+]
