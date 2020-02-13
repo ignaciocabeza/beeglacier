@@ -7,11 +7,21 @@ class DB:
         self._create_if_not_exists()
 
     def _create_if_not_exists(self):
+        #account table
         check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='accounts';"
         c = self.conn.cursor()
         c.execute(check_sql)
         if not c.fetchone():
             create_sql = "CREATE TABLE accounts (account_id, access_key, secret_key, region_name);"
+            c.execute(create_sql)
+            self.conn.commit()
+
+        #uploads table
+        check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='uploads';"
+        c = self.conn.cursor()
+        c.execute(check_sql)
+        if not c.fetchone():
+            create_sql = "CREATE TABLE uploads (account_id, upload_id, filepath, vault, response);"
             c.execute(create_sql)
             self.conn.commit()
 
@@ -33,7 +43,21 @@ class DB:
             sql = "INSERT INTO accounts (account_id, access_key, secret_key, region_name) " + \
                   "VALUES ('%s','%s', '%s', '%s');" % (account_id,access_key, secret_key, region_name)
         
-        print(sql)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit() 
+
+    def create_upload(self, account_id, upload_id, filepath, vault):
+        sql = "INSERT INTO uploads (account_id, upload_id, filepath, vault) " + \
+              "VALUES ('%s','%s', '%s', '%s');" % (account_id, upload_id, filepath, vault)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit() 
+
+    def save_upload_response(self, upload_id, response):
+        sql = "UPDATE uploads SET response='%s' " + \
+              "WHERE upload_id = '%s';"
+        sql = sql % (response, upload_id)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 

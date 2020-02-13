@@ -1,10 +1,11 @@
 """
 Amazon Glacier Backups
 """
-import asyncio
 import os
 from pathlib import Path
 import threading
+import ntpath
+import json
 
 import toga
 from toga.style import Pack
@@ -57,7 +58,7 @@ class beeglacier(toga.App):
         self.vaults_table = toga.Table(HEADERS, data=[], style=Pack(height=300,direction=COLUMN), on_select=self.callback_row_selected)
         container.add(self.vaults_table)
 
-    def get_vaults_data(self):
+    def bg_get_vaults_data(self):
 
         db = DB(DB_PATH)
         account_id, access_key, secret_key, region_name = db.get_account()
@@ -87,16 +88,19 @@ class beeglacier(toga.App):
         self.refresh_vaults_button.label = "Refresh Vaults"
         self.refresh_vaults_button.refresh()
 
-    def on_refresh_vaults(self, button, **kwargs):
-        # callback for button
-        self.refresh_vaults_button.label = "Loading...     "
-        self.refresh_vaults_button.refresh()
+    def bg_upload_file(self, vault, path):
 
-        # fetch data with a thread
-        x = threading.Thread(target=self.get_vaults_data, args=())
-        threads = list()
-        threads.append(x)
-        x.start()
+        db = DB(DB_PATH)
+        account_id, access_key, secret_key, region_name = db.get_account()
+
+        filename = ntpath.basename(path)
+        part_size = 4
+
+        upload_id = self.glacier_instance.create_multipart_upload(vault, filename, part_size)
+        db.create_upload(self.account_id, upload_id, path, vault)
+
+        response = self.glacier_instance.upload(vault, path, filename, part_size, 4, upload_id)
+        db.save_upload_response(upload_id, json.dumps(response))
 
     def obs_data_table(self, test):
         # observable function from data_vaults object
@@ -115,6 +119,11 @@ class beeglacier(toga.App):
             self.access_key = self.account[1]
             self.secret_key = self.account[2]
             self.region_name = self.account[3]
+            self.glacier_instance = Glacier(self.account_id,
+                                            self.access_key,
+                                            self.secret_key,
+                                            self.region_name)
+
             
     def callback_create_account(self,button):
         # called after pressed save button
@@ -156,19 +165,26 @@ class beeglacier(toga.App):
         self.account_form = Form(fields=fields, confirm=confirm)
         return self.account_form.getbox()
 
-    def upload_file(self, button):
+    def on_refresh_vaults(self, button, **kwargs):
+        # callback for button
+        self.refresh_vaults_button.label = "Loading...     "
+        self.refresh_vaults_button.refresh()
 
+        # fetch data with a thread
+        x = threading.Thread(target=self.bg_get_vaults_data, args=())
+        threads = list()
+        threads.append(x)
+        x.start()
+
+    def on_upload_file(self, button):
+        
         full_path = self.input_path.value
         vault_name = self.input_vault.value
-        import ntpath
-        filename = ntpath.basename(full_path)
-        part_size = 4
 
-        self.upload_id = self.glacier_instance.create_multipart_upload(vault_name, filename, part_size)
-        print(self.upload_id)
-
-        response = self.glacier_instance.upload(vault_name, full_path, filename, part_size, 4, self.upload_id)
-        print (response)
+        x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
+        threads = list()
+        threads.append(x)
+        x.start()
 
     def startup(self): 
         # setup
@@ -203,7 +219,7 @@ class beeglacier(toga.App):
         self.input_vault = toga.TextInput()
         self.input_path = toga.TextInput()
         self.input_path.value = '/Users/ignaciocabeza/Documents/test.zip'
-        self.button_upload = toga.Button('Upload', on_press=self.upload_file)
+        self.button_upload = toga.Button('Upload', on_press=self.on_upload_file)
         add_file_box.add(self.input_vault, self.input_path, self.button_upload)
         self.app_box.add(add_file_box)
 

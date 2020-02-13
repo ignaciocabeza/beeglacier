@@ -11,16 +11,16 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 - briefcase dev
 
 ## To-do
-- add forms validation
+- ~~add forms validation~~
 - refactor upload form
 - refactor table
 - add file dialog for selecting file to upload
-- save uploads response in db
-- avoid UI block in glacier requests
+- ~~save uploads response in db~~
+- ~~avoid UI block in glacier requests~~
 - add vault files viewer
 - stop and resume upload
 - code new vault button
-- move dbsqlite database to another path (if app is updated, database is overwritten)
+- ~~move dbsqlite database to another path (if app is updated, database is overwritten)~~
 
 ## Breware Info
 
