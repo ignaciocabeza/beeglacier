@@ -193,6 +193,14 @@ class beeglacier(toga.App):
         threads.append(x)
         x.start()
 
+    def on_select_option(self,interface, option):
+        option.refresh()
+        if option == self.credentials_box:
+            reduce_to = 350
+            self.main_window.size = (self.main_window.size[0], reduce_to)
+        else:
+            self.main_window.size = (self.main_window.size[0], 480)    
+
     def startup(self): 
         # setup
         self.pre_init()
@@ -237,10 +245,11 @@ class beeglacier(toga.App):
         self.vault_box.add(self.archives_table.getbox())
 
         # Option Container
-        container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN))
+        container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
         container.add('Vaults', self.app_box)
         container.add('Vault Info', self.vault_box)
-        container.add('Configure', self.save_credentials_box())
+        self.credentials_box = self.save_credentials_box()
+        container.add('Configure', self.credentials_box)
         main_box.add(container)
 
         #build and show main
