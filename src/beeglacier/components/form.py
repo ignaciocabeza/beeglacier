@@ -1,14 +1,14 @@
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
+from .base import Base
 
 MSG_ERROR = {
     'notnull': 'Field cannot be empty'
 }
 
-class Form:
+class Form(Base):
 
-    basebox = None
     fields = {}
     validation = {}
     confirm_btn = None
@@ -17,6 +17,7 @@ class Form:
     label_error = None
 
     def __init__(self, **kwargs):
+        super().__init__()
         """
         validation availables:
             - notnull
@@ -88,9 +89,6 @@ class Form:
     def _process_callback(self, button):
         if self._validate_fields():
             self.callback_confirm(button)
-
-    def getbox(self):
-        return self.basebox
 
     def get_field_value(self, field_name):
         return self.fields[field_name]['input'].value

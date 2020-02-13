@@ -15,9 +15,18 @@ import concurrent.futures
 from .aws import Glacier
 from .db import DB
 from .components.form import Form
+from .components.table import Table
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
-HEADERS = ['vaultname','numberofarchives','sizeinbytes']
+HEADERS = [
+    {'name': 'vaultname', 'label': 'Name'},
+    {'name': 'numberofarchives', 'label': '# Archives'},
+    {'name': 'sizeinbytes', 'label': 'Size (MB)'},
+]
+HEADERS_ARCHIVES = [
+    {'name': 'filename', 'label': 'Filename'},
+    {'name': 'sizeinbytes', 'label': 'Size (MB)'},
+]
 
 class ObsData(object):
     def __init__(self):
@@ -51,12 +60,8 @@ class beeglacier(toga.App):
     data_vaults = None
 
     def callback_row_selected(self, table, row):
+        self.vault_selected = row.vaultname
         self.input_vault.value = row.vaultname
-
-    def create_vaults_table(self, container):
-        # create table control
-        self.vaults_table = toga.Table(HEADERS, data=[], style=Pack(height=300,direction=COLUMN), on_select=self.callback_row_selected)
-        container.add(self.vaults_table)
 
     def bg_get_vaults_data(self):
 
@@ -73,7 +78,7 @@ class beeglacier(toga.App):
         while vaults:
             # insert vault to data
             for vault in vaults:
-                new_row = { key.lower():value for (key,value) in vault.items() if key.lower() in HEADERS }
+                new_row = { key.lower():value for (key,value) in vault.items() }
                 new_row['sizeinbytes'] = round(new_row['sizeinbytes']/1024/1024,2)
                 data.append(new_row)
 
@@ -83,6 +88,7 @@ class beeglacier(toga.App):
                 vaults = vaults_response["VaultList"]
             else:
                 vaults = []
+
 
         self.data_vaults.data = data
         self.refresh_vaults_button.label = "Refresh Vaults"
@@ -104,7 +110,8 @@ class beeglacier(toga.App):
 
     def obs_data_table(self, test):
         # observable function from data_vaults object
-        self.vaults_table.data = self.data_vaults.data
+        print(self.data_vaults.data)
+        self.vaults_table.set_data(self.data_vaults.data)
 
     def create_vault(self, widget):
         print ("Not implemented")
@@ -211,7 +218,8 @@ class beeglacier(toga.App):
 
         # -- table
         list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
-        self.create_vaults_table(list_box)
+        self.vaults_table = Table(headers=HEADERS, on_row_selected=self.callback_row_selected)
+        list_box.add(self.vaults_table.getbox())
         self.app_box.add(list_box)
 
         # -- add file
@@ -225,6 +233,8 @@ class beeglacier(toga.App):
 
         # Vaults info
         self.vault_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
+        self.vault_box.add(self.archives_table.getbox())
 
         # Option Container
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN))

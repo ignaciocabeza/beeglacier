@@ -12,6 +12,9 @@ import boto3
 MAX_ATTEMPTS = 10
 fileblock = threading.Lock()
 
+#list of prices.
+#https://a0.p.awsstatic.com/pricing/1.0/glacier/index.json?timestamp=1581568546394
+
 class Glacier():
 
     def __init__(self, account_id, access_key_id, secret_access_key, region_name):

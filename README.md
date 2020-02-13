@@ -17,10 +17,13 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 - add file dialog for selecting file to upload
 - ~~save uploads response in db~~
 - ~~avoid UI block in glacier requests~~
-- add vault files viewer
 - stop and resume upload
 - code new vault button
 - ~~move dbsqlite database to another path (if app is updated, database is overwritten)~~
+- create inventory retrieval job
+- create table for store inventory jobs
+- add "Vault details" screen (for view all the files in a vault)
+
 
 ## Breware Info
 

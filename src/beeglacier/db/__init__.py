@@ -25,6 +25,15 @@ class DB:
             c.execute(create_sql)
             self.conn.commit()
 
+        #jobs table
+        check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='jobs';"
+        c = self.conn.cursor()
+        c.execute(check_sql)
+        if not c.fetchone():
+            create_sql = "CREATE TABLE jobs (account_id, job_id, type, created_at, updated_at, done, response);"
+            c.execute(create_sql)
+            self.conn.commit()
+
     def get_account(self):
         select_sql = "SELECT * FROM accounts"
         c = self.conn.cursor()
@@ -58,6 +67,13 @@ class DB:
         sql = "UPDATE uploads SET response='%s' " + \
               "WHERE upload_id = '%s';"
         sql = sql % (response, upload_id)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit() 
+
+    def create_job(self, account_id, job_id, job_type):
+        sql = "INSERT INTO uploads (accoun_id, job_id, job_type, done) " + \
+              "VALUES ('%s','%s', '%s', 0);" % (account_id, job_id, job_type)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 
