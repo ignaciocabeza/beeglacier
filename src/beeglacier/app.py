@@ -193,7 +193,7 @@ class beeglacier(toga.App):
 
     def on_btn_get_inventory(self, button):
         response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
-        self.db.create_job(self.account_id, response.id, 'inventory')
+        self.db.create_job(self.obs_selected_vault.data, response.id, 'inventory')
 
     def on_select_option(self,interface, option):
         option.refresh()
