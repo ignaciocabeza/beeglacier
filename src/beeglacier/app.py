@@ -1,6 +1,9 @@
 """
 Amazon Glacier Backups
 """
+
+#Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
+
 import os
 from pathlib import Path
 import threading
@@ -12,10 +15,11 @@ from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 import concurrent.futures
 
-from .aws import Glacier
 from .db import DB
 from .components.form import Form
 from .components.table import Table
+from .utils import ObsData
+from .utils.aws import Glacier
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 HEADERS = [
@@ -28,24 +32,6 @@ HEADERS_ARCHIVES = [
     {'name': 'sizeinbytes', 'label': 'Size (MB)'},
 ]
 
-class ObsData(object):
-    def __init__(self):
-        self._data = []
-        self._observers = []
-
-    @property
-    def data(self):
-        return self._data
-
-    @data.setter
-    def data(self, value):
-        self._data = value
-        for callback in self._observers:
-            callback(self._data)
-
-    def bind_to(self, callback):
-        self._observers.append(callback)
-
 class beeglacier(toga.App):
 
     glacier_instance = None
@@ -57,21 +43,26 @@ class beeglacier(toga.App):
     region_name = None
 
     # observables datas
-    data_vaults = None
+    obs_data_vaults = None
+    obs_selected_vault = None
 
     def callback_row_selected(self, table, row):
-        self.vault_selected = row.vaultname
-        self.input_vault.value = row.vaultname
+        self.obs_selected_vault.data = row.name
+        self.input_vault.value = row.name
 
     def bg_get_vaults_data(self):
 
+        # get account info
         db = DB(DB_PATH)
         account_id, access_key, secret_key, region_name = db.get_account()
+        
+        # create glacier instance
         glacier_instance = Glacier(account_id,
                                 access_key,
                                 secret_key,
                                 region_name)
 
+        # retrieve all vaults of that account
         data = []
         vaults_response = glacier_instance.list_vaults()
         vaults = vaults_response["VaultList"]
@@ -89,8 +80,13 @@ class beeglacier(toga.App):
             else:
                 vaults = []
 
+        # save to database
+        db.create_vaults(account_id, json.dumps(data))
 
-        self.data_vaults.data = data
+        # update observer
+        self.obs_data_vaults.data = data
+
+        # refresh UI
         self.refresh_vaults_button.label = "Refresh Vaults"
         self.refresh_vaults_button.refresh()
 
@@ -110,8 +106,10 @@ class beeglacier(toga.App):
 
     def obs_data_table(self, test):
         # observable function from data_vaults object
-        print(self.data_vaults.data)
-        self.vaults_table.set_data(self.data_vaults.data)
+        self.vaults_table.set_data(self.obs_data_vaults.data)
+
+    def obs_selected_vault_callback(self, test):
+        self.vault_title.text = "Selected: " + self.obs_selected_vault.data
 
     def create_vault(self, widget):
         print ("Not implemented")
@@ -193,21 +191,30 @@ class beeglacier(toga.App):
         threads.append(x)
         x.start()
 
+    def on_btn_get_inventory(self, button):
+        response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
+        self.db.create_job(self.account_id, response.id, 'inventory')
+
     def on_select_option(self,interface, option):
         option.refresh()
+        '''
         if option == self.credentials_box:
             reduce_to = 350
             self.main_window.size = (self.main_window.size[0], reduce_to)
         else:
             self.main_window.size = (self.main_window.size[0], 480)    
+        '''
 
     def startup(self): 
         # setup
         self.pre_init()
 
         # create observable for storing list of vaults
-        self.data_vaults = ObsData()
-        self.data_vaults.bind_to(self.obs_data_table)
+        self.obs_data_vaults = ObsData()
+        self.obs_data_vaults.bind_to(self.obs_data_table)
+
+        self.obs_selected_vault = ObsData(None)
+        self.obs_selected_vault.bind_to(self.obs_selected_vault_callback)
 
         # create main window
         self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
@@ -240,9 +247,12 @@ class beeglacier(toga.App):
         self.app_box.add(add_file_box)
 
         # Vaults info
+        self.vault_title = toga.Label('Selected: ')
+        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
         self.vault_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
         self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
-        self.vault_box.add(self.archives_table.getbox())
+        
+        self.vault_box.add( self.vault_title, self.btn_get_inventory, self.archives_table.getbox())
 
         # Option Container
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
@@ -251,6 +261,11 @@ class beeglacier(toga.App):
         self.credentials_box = self.save_credentials_box()
         container.add('Configure', self.credentials_box)
         main_box.add(container)
+
+        # get last retrieve of vaults from database 
+        vaults_db = self.db.get_vaults(self.account_id)
+        if vaults_db:
+            self.obs_data_vaults.data = json.loads(vaults_db)
 
         #build and show main
         self.main_window.content = main_box

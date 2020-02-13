@@ -25,12 +25,21 @@ class DB:
             c.execute(create_sql)
             self.conn.commit()
 
+        #vautls table
+        check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='vaults';"
+        c = self.conn.cursor()
+        c.execute(check_sql)
+        if not c.fetchone():
+            create_sql = "CREATE TABLE vaults (account_id, response, updated_at INTEGER);"
+            c.execute(create_sql)
+            self.conn.commit()
+
         #jobs table
         check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='jobs';"
         c = self.conn.cursor()
         c.execute(check_sql)
         if not c.fetchone():
-            create_sql = "CREATE TABLE jobs (account_id, job_id, type, created_at, updated_at, done, response);"
+            create_sql = "CREATE TABLE jobs (account_id, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response);"
             c.execute(create_sql)
             self.conn.commit()
 
@@ -72,8 +81,22 @@ class DB:
         self.conn.commit() 
 
     def create_job(self, account_id, job_id, job_type):
-        sql = "INSERT INTO uploads (accoun_id, job_id, job_type, done) " + \
-              "VALUES ('%s','%s', '%s', 0);" % (account_id, job_id, job_type)
+        sql = "INSERT INTO jobs (account_id, job_id, created_at, job_type, done) " + \
+              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0);" % (account_id, job_id, job_type)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 
+
+    def create_vaults(self, account_id, response):
+        sql = "INSERT INTO vaults (account_id, response, updated_at) " + \
+              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER) );" % (account_id, response)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit()
+    
+    def get_vaults(self, account_id):
+        select_sql = "SELECT response FROM vaults WHERE account_id='%s' ORDER BY updated_at DESC LIMIT 1;" % (account_id)
+        c = self.conn.cursor()
+        c.execute(select_sql)
+        vaults = c.fetchone()
+        return vaults[0]

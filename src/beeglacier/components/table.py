@@ -24,7 +24,7 @@ class Table(Base):
 
         if 'on_row_selected' in kwargs.keys():
             # Save callback fn for row selected
-            self.on_row_selected = kwargs['headers']
+            self.on_row_selected = kwargs['on_row_selected']
 
         # create Toga Table
         table_style = Pack(height=300,direction=COLUMN)
@@ -33,7 +33,7 @@ class Table(Base):
                                       style=table_style, 
                                       on_select=self.on_row_selected)
         self.basebox.add(self.toga_table)
-    
+
     def _get_header_labels(self):
         return [header['label'] for header in self.headers]
 
