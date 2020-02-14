@@ -2,9 +2,16 @@
 
 This is an alpha test application for managing Amazon Glacier Storage made with Beeware
 
-![App](https://i.ibb.co/wssfmDJ/Screenshot-2020-02-12-at-17-41-19.png "BeeGlacier")
+List of vaults
+![App](https://i.ibb.co/3dXVCcH/Screenshot-2020-02-14-at-11-49-57.png "BeeGlacier")
 
-## setup
+Vault files
+![App](https://i.ibb.co/Hqx8bYz/Screenshot-2020-02-14-at-11-50-14.png "BeeGlacier")
+
+Credentials configuration
+![App](https://i.ibb.co/84rtS7H/Screenshot-2020-02-14-at-11-50-26.png "BeeGlacier")
+
+## Setup
 
 - create virtual enviroment
 - pip install -r requirements.txt (for development)
@@ -12,17 +19,20 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 
 ## To-do
 - ~~add forms validation~~
-- refactor upload form
-- refactor table
-- add file dialog for selecting file to upload
+- ~~refactor table~~
 - ~~save uploads response in db~~
 - ~~avoid UI block in glacier requests~~
+- ~~move dbsqlite database to another path (if app is updated, database is overwritten)~~
+- ~~create inventory retrieval job~~
+- ~~create table for store inventory jobs~~
+- ~~add "Vault details" screen (for view all the files in a vault)~~
+- add file dialog for selecting file to upload
+- refactor upload form
 - stop and resume upload
 - code new vault button
-- ~~move dbsqlite database to another path (if app is updated, database is overwritten)~~
-- create inventory retrieval job
-- create table for store inventory jobs
-- add "Vault details" screen (for view all the files in a vault)
+- add 'delete vault'
+- add 'delete archive'
+- improve ui in 'vault details' option
 
 
 ## Breware Info

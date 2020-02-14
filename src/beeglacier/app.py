@@ -27,9 +27,10 @@ HEADERS = [
     {'name': 'numberofarchives', 'label': '# Archives'},
     {'name': 'sizeinbytes', 'label': 'Size (MB)'},
 ]
+
 HEADERS_ARCHIVES = [
-    {'name': 'filename', 'label': 'Filename'},
-    {'name': 'sizeinbytes', 'label': 'Size (MB)'},
+    {'name': 'archivedescription', 'label': 'Filename'},
+    {'name': 'size', 'label': 'Size (MB)'},
 ]
 
 class beeglacier(toga.App):
@@ -195,15 +196,36 @@ class beeglacier(toga.App):
         response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
         self.db.create_job(self.obs_selected_vault.data, response.id, 'inventory')
 
-    def on_select_option(self,interface, option):
+    def on_btn_check_jobs(self, button):
+        jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
+        for job in jobs:
+            job_id = job[0]
+            job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
+            if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
+                job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id)
+                if job_result['status'] == 200:
+                    job_dict = json.loads(job_result['body'].read().decode())
+                    self.db.update_job(job_id, job_dict ,1)
+
+    def on_select_option(self, interface, option):
         option.refresh()
-        '''
-        if option == self.credentials_box:
-            reduce_to = 350
-            self.main_window.size = (self.main_window.size[0], reduce_to)
-        else:
-            self.main_window.size = (self.main_window.size[0], 480)    
-        '''
+        vault_box = getattr(self, 'vault_box', None)
+        if option == vault_box:
+            self.archives_table.set_data([])
+            jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
+            self.vault_pending_jobs.text = 'Pending Jobs: ' + str(len(jobs))
+
+            done_jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data, status='finished')
+            if len(done_jobs):
+                last_job_done = json.loads(done_jobs[0][1])
+                list_archives = last_job_done['ArchiveList']
+                data = []
+                for archive in list_archives:
+                    new_row = { key.lower():value for (key,value) in archive.items() }
+                    new_row['size'] = round(new_row['size']/1024/1024,2)
+                    data.append(new_row)
+
+                self.archives_table.set_data(data)
 
     def startup(self): 
         # setup
@@ -247,12 +269,17 @@ class beeglacier(toga.App):
         self.app_box.add(add_file_box)
 
         # Vaults info
-        self.vault_title = toga.Label('Selected: ')
+        self.vault_title = toga.Label('Selected: -')
+        self.vault_pending_jobs = toga.Label('Pending Jobs: 0')
         self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
+        self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
         self.vault_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
         self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
-        
-        self.vault_box.add( self.vault_title, self.btn_get_inventory, self.archives_table.getbox())
+        self.vault_box.add( self.vault_title, 
+                            self.vault_pending_jobs,  
+                            self.archives_table.getbox(), 
+                            self.btn_get_inventory,
+                            self.btn_check_jobs)
 
         # Option Container
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)

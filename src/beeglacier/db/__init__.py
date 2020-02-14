@@ -1,4 +1,5 @@
 import sqlite3
+import json
 
 class DB:
     
@@ -83,6 +84,29 @@ class DB:
     def create_job(self, id, job_id, job_type):
         sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done) " + \
               "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0);" % (id, job_id, job_type)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit() 
+
+    def get_inventory_jobs(self, vault_name, status = 'pending'):
+        done = ' AND done=0 '
+        order = 'created_at'
+        if status == 'all':
+            done = ' '
+        if status == 'finished':
+            done = ' AND done=1 '
+            order = 'updated_at'
+            
+        select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE id='%s' %s ORDER BY %s DESC;" % (vault_name, done, order)
+        c = self.conn.cursor()
+        c.execute(select_sql)
+        jobs = c.fetchall()
+        return jobs
+
+    def update_job(self, job_id, response, status):
+        sql = "UPDATE jobs SET response='%s', done=%s, updated_at=CAST(strftime('%%s','now') as INTEGER) " + \
+              "WHERE job_id = '%s';"
+        sql = sql % (json.dumps(response), str(status), job_id )
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 
