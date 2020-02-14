@@ -2,13 +2,16 @@
 
 This is an alpha test application for managing Amazon Glacier Storage made with Beeware
 
-List of vaults
+### List of vaults
+
 ![App](https://i.ibb.co/3dXVCcH/Screenshot-2020-02-14-at-11-49-57.png "BeeGlacier")
 
-Vault files
+### Vault files
+
 ![App](https://i.ibb.co/Hqx8bYz/Screenshot-2020-02-14-at-11-50-14.png "BeeGlacier")
 
-Credentials configuration
+### Credentials configuration
+
 ![App](https://i.ibb.co/84rtS7H/Screenshot-2020-02-14-at-11-50-26.png "BeeGlacier")
 
 ## Setup
