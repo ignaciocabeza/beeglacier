@@ -17,7 +17,7 @@ class Form(Base):
     label_error = None
 
     def __init__(self, **kwargs):
-        super().__init__()
+        super(Form, self).__init__()
         """
         validation availables:
             - notnull
@@ -33,8 +33,6 @@ class Form(Base):
 
         field_style = Pack(padding=5)
         confirm_style = Pack(padding=5, alignment='right')
-
-        self.basebox = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=5))
         self.label_error = toga.Label('', style=field_style)
 
         # add form fields
@@ -53,6 +51,8 @@ class Form(Base):
                 label_control = toga.Label(label, style=field_style)
                 input_control = toga.TextInput(placeholder='',style=field_style)
                 input_control.value = value
+                self.getcontrols().add('FormContainer_Label' + name.capitalize() + '', label_control.id)
+                self.getcontrols().add('FormContainer_Input' + name.capitalize() + '', input_control.id)
 
                 # add to box
                 self.fields[name] = { 'label': label_control, 'input': input_control}
@@ -66,6 +66,7 @@ class Form(Base):
             self.confirm_btn = toga.Button(label, 
                                            on_press=self._process_callback,
                                            style=confirm_style)
+            self.getcontrols().add('FormContainer_ConfirmButton', self.confirm_btn.id)
             self.basebox.add(self.confirm_btn)
 
         # Todo: add cancel button

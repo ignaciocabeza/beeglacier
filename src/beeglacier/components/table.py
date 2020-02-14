@@ -32,6 +32,7 @@ class Table(Base):
                                       data=[], 
                                       style=table_style, 
                                       on_select=self.on_row_selected)
+        self.getcontrols().add('Table', self.toga_table.id)
         self.basebox.add(self.toga_table)
 
     def _get_header_labels(self):

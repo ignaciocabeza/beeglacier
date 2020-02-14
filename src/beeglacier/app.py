@@ -18,7 +18,7 @@ import concurrent.futures
 from .db import DB
 from .components.form import Form
 from .components.table import Table
-from .utils import ObsData
+from .utils import ObsData, Controls
 from .utils.aws import Glacier
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
@@ -33,11 +33,13 @@ HEADERS_ARCHIVES = [
     {'name': 'size', 'label': 'Size (MB)'},
 ]
 
+global_controls = Controls()
+
 class beeglacier(toga.App):
 
     glacier_instance = None
-    vault_table = None
-    
+    vaults_table = None
+
     account_id = None
     access_key = None
     secret_key = None
@@ -110,7 +112,8 @@ class beeglacier(toga.App):
         self.vaults_table.set_data(self.obs_data_vaults.data)
 
     def obs_selected_vault_callback(self, test):
-        self.vault_title.text = "Selected: " + self.obs_selected_vault.data
+        label = global_controls.get_control_by_name('VaultDetail_VaultTitle')
+        label.text = "Selected: " + self.obs_selected_vault.data
 
     def create_vault(self, widget):
         print ("Not implemented")
@@ -140,7 +143,158 @@ class beeglacier(toga.App):
         self.db.save_account(self.account_id, self.access_key, 
                              self.secret_key, self.region_name)
 
-    def save_credentials_box(self):
+    def on_refresh_vaults(self, button, **kwargs):
+        # callback for button
+        self.refresh_vaults_button.label = "Loading...     "
+        self.refresh_vaults_button.refresh()
+
+        # fetch data with a thread
+        x = threading.Thread(target=self.bg_get_vaults_data, args=())
+        threads = list()
+        threads.append(x)
+        x.start()
+
+    def on_upload_file(self, button):
+        full_path = self.input_path.value
+        vault_name = self.input_vault.value
+
+        x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
+        threads = list()
+        threads.append(x)
+        x.start()
+
+    def on_btn_get_inventory(self, button):
+        response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
+        self.db.create_job(self.obs_selected_vault.data, response.id, 'inventory')
+
+    def on_btn_check_jobs(self, button):
+        jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
+        for job in jobs:
+            job_id = job[0]
+            job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
+            if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
+                job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id)
+                if job_result['status'] == 200:
+                    job_dict = json.loads(job_result['body'].read().decode())
+                    self.db.update_job(job_id, job_dict ,1)
+        
+        self.select_option_vault_details()
+
+    def select_option_vault_details(self):
+        self.archives_table.set_data([])
+        jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
+        self.vault_pending_jobs.text = 'Pending Jobs: ' + str(len(jobs))
+
+        done_jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data, status='finished')
+        if len(done_jobs):
+            last_job_done = json.loads(done_jobs[0][1])
+            list_archives = last_job_done['ArchiveList']
+            data = []
+            for archive in list_archives:
+                new_row = { key.lower():value for (key,value) in archive.items() }
+                new_row['size'] = round(new_row['size']/1024/1024,2)
+                data.append(new_row)
+
+            self.archives_table.set_data(data)
+
+    def on_select_option(self, interface, option):
+        option.refresh()
+        vault_box = getattr(self, 'vault_box', None)
+        if option == vault_box:
+            self.select_option_vault_details()
+
+    def startup(self): 
+        # setup
+        self.pre_init()
+
+        # Main: MainWindow
+        self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
+        global_controls.set_window(self.main_window)
+
+        # Main: Box
+        main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        global_controls.add('Main', main_box.id)
+
+        # Vaults: Box
+        self.app_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        global_controls.add('Vaults', self.app_box.id)
+
+        # Vaults -> Top Nav: Box
+        self.nav_box = toga.Box(style=Pack(direction=ROW, flex=1, padding=10))
+        self.app_box.add(self.nav_box)
+        global_controls.add('Vaults_TopNav', self.nav_box.id)
+
+        # Vaults -> Top Nav -> RefreshVautls: Button
+        self.refresh_vaults_button = toga.Button('Refresh Vaults', on_press=self.on_refresh_vaults)
+        self.nav_box.add(self.refresh_vaults_button)
+        global_controls.add('Vaults_TopNav_RefreshVaults', self.refresh_vaults_button.id)
+
+        # Vaults -> Top Nav -> CreateVault: Button
+        create_vault_button = toga.Button('New Vault', on_press=self.create_vault)
+        self.nav_box.add(create_vault_button)
+        global_controls.add('Vaults_TopNav_NewVault', create_vault_button.id)
+
+        # Vautls -> TableContainer: Box
+        list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        self.app_box.add(list_box)
+        global_controls.add('Vaults_TableContainer', list_box.id)
+
+        # Vautls -> TableContainer -> VaultsTable: Table
+        self.vaults_table = Table(headers=HEADERS, on_row_selected=self.callback_row_selected)
+        list_box.add(self.vaults_table.getbox())
+        global_controls.add_from_controls(self.vaults_table.getcontrols(),'Vaults_TableContainer_')
+
+        # Vaults -> Upload: Box
+        add_file_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        self.app_box.add(add_file_box)
+        global_controls.add('Vaults_Upload', add_file_box.id)
+
+        # Vaults -> Upload -> VaultName: TextInput
+        self.input_vault = toga.TextInput()
+        add_file_box.add(self.input_vault)
+        global_controls.add('Vaults_Upload_VaultName', self.input_vault.id)
+
+        # Vaults -> Upload -> VaultPath: TextInput
+        self.input_path = toga.TextInput()
+        self.input_path.value = '/Users/ignaciocabeza/Documents/test.zip'
+        add_file_box.add(self.input_path)
+        global_controls.add('Vaults_Upload_VaultPath', self.input_path.id)
+        
+        # Vaults -> Upload -> Button: Button
+        self.button_upload = toga.Button('Upload', on_press=self.on_upload_file)
+        add_file_box.add(self.button_upload)
+        global_controls.add('Vaults_Upload_Button', self.button_upload.id)
+
+        # VaultDetail: Box
+        self.vault_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        global_controls.add('VaultDetail', self.vault_box.id)
+
+        # VaultDetail -> VaultTitle: Label
+        self.vault_title = toga.Label('Selected: -')
+        self.vault_box.add(self.vault_title)
+        global_controls.add('VaultDetail_VaultTitle', self.vault_title.id)
+
+        # VaultDetail -> VaultPendingJobs: Label
+        self.vault_pending_jobs = toga.Label('Pending Jobs: 0')
+        self.vault_box.add(self.vault_pending_jobs)
+        global_controls.add('VaultDetail_VaultPendingJobs', self.vault_pending_jobs.id)
+
+        # VaultDetail -> StartInventoryJobButton: Button
+        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
+        self.vault_box.add(self.btn_get_inventory)
+        global_controls.add('VaultDetail_StartInventoryJobButton', self.btn_get_inventory.id)
+
+        # VaultDetail -> CheckJobsButton: Button
+        self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
+        self.vault_box.add(self.btn_check_jobs)
+        global_controls.add('VaultDetail_CheckJobsButton', self.btn_check_jobs.id)
+
+        # VaultDetail -> ArchivesTable: Table
+        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
+        self.vault_box.add(self.archives_table.getbox())
+        global_controls.add_from_controls(self.archives_table.getcontrols(),'VaultDetail_TableContainer_')
+
+        # credentials
         fields = [
             {
                 'name': 'account_id', 
@@ -168,69 +322,23 @@ class beeglacier(toga.App):
             'label': 'Save credentials', 
             'callback': self.callback_create_account 
         }
-        self.account_form = Form(fields=fields, confirm=confirm)
-        return self.account_form.getbox()
+        account_form = Form(fields=fields, confirm=confirm)
+        self.credentials_box = account_form.getbox()
+        global_controls.add_from_controls(account_form.getcontrols(),'Credentials_')
 
-    def on_refresh_vaults(self, button, **kwargs):
-        # callback for button
-        self.refresh_vaults_button.label = "Loading...     "
-        self.refresh_vaults_button.refresh()
+        # Main -> OptionContainer: OptionContainer
+        container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
+        container.add('Vaults', self.app_box)
+        container.add('Vault Detail', self.vault_box)
+        container.add('Credentials', self.credentials_box)
+        main_box.add(container)
+        global_controls.add('Main_OptionContainer', container.id)
 
-        # fetch data with a thread
-        x = threading.Thread(target=self.bg_get_vaults_data, args=())
-        threads = list()
-        threads.append(x)
-        x.start()
+        #build and show main
+        self.main_window.content = main_box
+        self.main_window.show()
 
-    def on_upload_file(self, button):
-        
-        full_path = self.input_path.value
-        vault_name = self.input_vault.value
-
-        x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
-        threads = list()
-        threads.append(x)
-        x.start()
-
-    def on_btn_get_inventory(self, button):
-        response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
-        self.db.create_job(self.obs_selected_vault.data, response.id, 'inventory')
-
-    def on_btn_check_jobs(self, button):
-        jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
-        for job in jobs:
-            job_id = job[0]
-            job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
-            if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
-                job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id)
-                if job_result['status'] == 200:
-                    job_dict = json.loads(job_result['body'].read().decode())
-                    self.db.update_job(job_id, job_dict ,1)
-
-    def on_select_option(self, interface, option):
-        option.refresh()
-        vault_box = getattr(self, 'vault_box', None)
-        if option == vault_box:
-            self.archives_table.set_data([])
-            jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
-            self.vault_pending_jobs.text = 'Pending Jobs: ' + str(len(jobs))
-
-            done_jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data, status='finished')
-            if len(done_jobs):
-                last_job_done = json.loads(done_jobs[0][1])
-                list_archives = last_job_done['ArchiveList']
-                data = []
-                for archive in list_archives:
-                    new_row = { key.lower():value for (key,value) in archive.items() }
-                    new_row['size'] = round(new_row['size']/1024/1024,2)
-                    data.append(new_row)
-
-                self.archives_table.set_data(data)
-
-    def startup(self): 
-        # setup
-        self.pre_init()
-
+        #---
         # create observable for storing list of vaults
         self.obs_data_vaults = ObsData()
         self.obs_data_vaults.bind_to(self.obs_data_table)
@@ -238,65 +346,11 @@ class beeglacier(toga.App):
         self.obs_selected_vault = ObsData(None)
         self.obs_selected_vault.bind_to(self.obs_selected_vault_callback)
 
-        # create main window
-        self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
-        main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-    
-        # Vaults Option
-        self.app_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
-
-        # -- nav
-        self.nav_box = toga.Box(style=Pack(direction=ROW, flex=1, padding=10))
-        self.refresh_vaults_button = toga.Button('Refresh Vaults', on_press=self.on_refresh_vaults)
-        self.nav_box.add(self.refresh_vaults_button)
-        create_vault_button = toga.Button('New Vault', on_press=self.create_vault)
-        self.nav_box.add(create_vault_button)
-        self.app_box.add(self.nav_box)
-
-        # -- table
-        list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
-        self.vaults_table = Table(headers=HEADERS, on_row_selected=self.callback_row_selected)
-        list_box.add(self.vaults_table.getbox())
-        self.app_box.add(list_box)
-
-        # -- add file
-        add_file_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
-        self.input_vault = toga.TextInput()
-        self.input_path = toga.TextInput()
-        self.input_path.value = '/Users/ignaciocabeza/Documents/test.zip'
-        self.button_upload = toga.Button('Upload', on_press=self.on_upload_file)
-        add_file_box.add(self.input_vault, self.input_path, self.button_upload)
-        self.app_box.add(add_file_box)
-
-        # Vaults info
-        self.vault_title = toga.Label('Selected: -')
-        self.vault_pending_jobs = toga.Label('Pending Jobs: 0')
-        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
-        self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
-        self.vault_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
-        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
-        self.vault_box.add( self.vault_title, 
-                            self.vault_pending_jobs,  
-                            self.archives_table.getbox(), 
-                            self.btn_get_inventory,
-                            self.btn_check_jobs)
-
-        # Option Container
-        container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
-        container.add('Vaults', self.app_box)
-        container.add('Vault Info', self.vault_box)
-        self.credentials_box = self.save_credentials_box()
-        container.add('Configure', self.credentials_box)
-        main_box.add(container)
-
         # get last retrieve of vaults from database 
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
             self.obs_data_vaults.data = json.loads(vaults_db)
 
-        #build and show main
-        self.main_window.content = main_box
-        self.main_window.show()
 
 def main():
     return beeglacier()
