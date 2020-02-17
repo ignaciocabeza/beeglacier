@@ -39,22 +39,18 @@ class beeglacier(toga.App):
 
     glacier_instance = None
     vaults_table = None
-
     account_id = None
     access_key = None
     secret_key = None
     region_name = None
-
     # observables datas
     obs_data_vaults = None
     obs_selected_vault = None
 
     def callback_row_selected(self, table, row):
         self.obs_selected_vault.data = row.name
-        self.input_vault.value = row.name
 
     def bg_get_vaults_data(self):
-
         # get account info
         db = DB(DB_PATH)
         account_id, access_key, secret_key, region_name = db.get_account()
@@ -94,7 +90,6 @@ class beeglacier(toga.App):
         self.refresh_vaults_button.refresh()
 
     def bg_upload_file(self, vault, path):
-
         db = DB(DB_PATH)
         account_id, access_key, secret_key, region_name = db.get_account()
 
@@ -112,8 +107,13 @@ class beeglacier(toga.App):
         self.vaults_table.set_data(self.obs_data_vaults.data)
 
     def obs_selected_vault_callback(self, test):
-        label = global_controls.get_control_by_name('VaultDetail_VaultTitle')
-        label.text = "Selected: " + self.obs_selected_vault.data
+        # Update selected Vault in 'Vault Detail' Option
+        label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
+        label_selected_vault.text = "Selected: " + self.obs_selected_vault.data
+
+        # Update Vault Name input in Upload Form
+        upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
+        upload_vault_input.text = self.obs_selected_vault.data
 
     def create_vault(self, widget):
         print ("Not implemented")
@@ -128,10 +128,8 @@ class beeglacier(toga.App):
             self.access_key = self.account[1]
             self.secret_key = self.account[2]
             self.region_name = self.account[3]
-            self.glacier_instance = Glacier(self.account_id,
-                                            self.access_key,
-                                            self.secret_key,
-                                            self.region_name)
+            self.glacier_instance = Glacier(self.account_id, self.access_key,
+                                            self.secret_key, self.region_name)
 
             
     def callback_create_account(self,button):
@@ -155,13 +153,28 @@ class beeglacier(toga.App):
         x.start()
 
     def on_upload_file(self, button):
-        full_path = self.input_path.value
-        vault_name = self.input_vault.value
+        input_path = global_controls.get_control_by_name('Vaults_Upload_VaultPath')
+        full_path = input_path.value
+        vault_name = self.obs_selected_vault.data
 
-        x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
-        threads = list()
-        threads.append(x)
-        x.start()
+        
+        if full_path and vault_name:
+            x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
+            threads = list()
+            threads.append(x)
+            x.start()
+        else:
+            if not full_path:
+                error_msg = 'File not selected'
+            else:
+                error_msg = 'Vault not selected'
+            self.main_window.error_dialog("Error", error_msg)
+
+    def on_searchfile_btn(self, button):
+        filepath = self.main_window.open_file_dialog("Select File to upload")
+        input_filepath = global_controls.get_control_by_name('Vaults_Upload_VaultPath')
+        if filepath:
+            input_filepath.value = filepath
 
     def on_btn_get_inventory(self, button):
         response = self.glacier_instance.initiate_inventory_retrieval(self.obs_selected_vault.data)
@@ -180,7 +193,22 @@ class beeglacier(toga.App):
         
         self.select_option_vault_details()
 
+    def on_select_option(self, interface, option):
+        # Hack for rewriting UI and autoresizing controls
+        option.refresh()
+
+        # Actions triggered after selecting options
+        option_1 = getattr(self, 'app_box', None)
+        option_2 = getattr(self, 'vault_box', None)
+        option_3 = getattr(self, 'credentials_box', None)
+        if option == option_2:
+            self.select_option_vault_details()
+
     def select_option_vault_details(self):
+        """ Actions after selecting Vault Detail Option
+            - Get Pending Jobs
+            - Populate Vault Archive Table
+        """
         self.archives_table.set_data([])
         jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
         self.vault_pending_jobs.text = 'Pending Jobs: ' + str(len(jobs))
@@ -197,30 +225,14 @@ class beeglacier(toga.App):
 
             self.archives_table.set_data(data)
 
-    def on_select_option(self, interface, option):
-        option.refresh()
-        vault_box = getattr(self, 'vault_box', None)
-        if option == vault_box:
-            self.select_option_vault_details()
-
-    def startup(self): 
-        # setup
-        self.pre_init()
-
-        # Main: MainWindow
-        self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
-        global_controls.set_window(self.main_window)
-
-        # Main: Box
-        main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        global_controls.add('Main', main_box.id)
+    def create_controls(self):
 
         # Vaults: Box
         self.app_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
         global_controls.add('Vaults', self.app_box.id)
 
         # Vaults -> Top Nav: Box
-        self.nav_box = toga.Box(style=Pack(direction=ROW, flex=1, padding=10))
+        self.nav_box = toga.Box(style=Pack(direction=ROW, flex=1, alignment="top"))
         self.app_box.add(self.nav_box)
         global_controls.add('Vaults_TopNav', self.nav_box.id)
 
@@ -235,7 +247,7 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_TopNav_NewVault', create_vault_button.id)
 
         # Vautls -> TableContainer: Box
-        list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding_top=5, alignment="top"))
         self.app_box.add(list_box)
         global_controls.add('Vaults_TableContainer', list_box.id)
 
@@ -245,21 +257,36 @@ class beeglacier(toga.App):
         global_controls.add_from_controls(self.vaults_table.getcontrols(),'Vaults_TableContainer_')
 
         # Vaults -> Upload: Box
-        add_file_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=10))
+        add_file_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding_top=20))
         self.app_box.add(add_file_box)
         global_controls.add('Vaults_Upload', add_file_box.id)
 
+        # Vaults -> Upload -> Title: Box
+        upload_vault_title_box = toga.Box(style=Pack(direction=ROW, flex=1))
+        add_file_box.add(upload_vault_title_box)
+        global_controls.add('Vaults_Upload_Title', upload_vault_title_box.id)
+
+        # Vaults -> Upload -> Title -> Label: Label
+        vault_title_label = toga.Label('Upload to Vault:',style=Pack(font_size=16, padding_bottom=5))
+        upload_vault_title_box.add(vault_title_label)
+        global_controls.add('Vaults_Upload_Title_Label', vault_title_label.id)
+
         # Vaults -> Upload -> VaultName: TextInput
-        self.input_vault = toga.TextInput()
-        add_file_box.add(self.input_vault)
-        global_controls.add('Vaults_Upload_VaultName', self.input_vault.id)
+        label_upload_vaultname = toga.Label('',style=Pack(font_size=16, padding_left=5, width=200))
+        upload_vault_title_box.add(label_upload_vaultname)
+        global_controls.add('Vaults_Upload_VaultName', label_upload_vaultname.id)
 
         # Vaults -> Upload -> VaultPath: TextInput
-        self.input_path = toga.TextInput()
-        self.input_path.value = '/Users/ignaciocabeza/Documents/test.zip'
+        self.input_path = toga.TextInput(readonly=True)
+        self.input_path.value = ''
         add_file_box.add(self.input_path)
         global_controls.add('Vaults_Upload_VaultPath', self.input_path.id)
         
+        # Vaults -> Upload -> SearchFile: Button
+        searchfile_upload = toga.Button('Search File', on_press=self.on_searchfile_btn)
+        add_file_box.add(searchfile_upload)
+        global_controls.add('Vaults_Upload_SearchFileBtn', searchfile_upload.id)
+
         # Vaults -> Upload -> Button: Button
         self.button_upload = toga.Button('Upload', on_press=self.on_upload_file)
         add_file_box.add(self.button_upload)
@@ -331,14 +358,29 @@ class beeglacier(toga.App):
         container.add('Vaults', self.app_box)
         container.add('Vault Detail', self.vault_box)
         container.add('Credentials', self.credentials_box)
-        main_box.add(container)
+        self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)
 
-        #build and show main
-        self.main_window.content = main_box
+    def startup(self): 
+        # setup
+        self.pre_init()
+
+        # Main: MainWindow
+        self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
+        global_controls.set_window(self.main_window)
+
+        # Main: Box
+        self.main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        global_controls.add('Main', self.main_box.id)
+
+        # Create all controls
+        self.create_controls()
+
+        # Show Main Window
+        self.main_window.content = self.main_box
         self.main_window.show()
 
-        #---
+        # ---
         # create observable for storing list of vaults
         self.obs_data_vaults = ObsData()
         self.obs_data_vaults.bind_to(self.obs_data_table)

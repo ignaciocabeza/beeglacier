@@ -29,7 +29,7 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 - ~~create inventory retrieval job~~
 - ~~create table for store inventory jobs~~
 - ~~add "Vault details" screen (for view all the files in a vault)~~
-- add file dialog for selecting file to upload
+- ~~add file dialog for selecting file to upload~~
 - refactor upload form
 - stop and resume upload
 - code new vault button
