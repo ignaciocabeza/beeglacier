@@ -115,8 +115,22 @@ class beeglacier(toga.App):
         upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
         upload_vault_input.text = self.obs_selected_vault.data
 
-    def create_vault(self, widget):
-        print ("Not implemented")
+    def on_create_vault_dialog(self, button):
+        if self.input_vault_name.value:
+            self.glacier_instance.create_vault(self.input_vault_name.value)
+            self.create_vault_dialog.close()
+
+    def on_create_vault(self, widget):
+        self.create_vault_dialog = toga.Window(title='Create New Vault', resizeable=False, size=(300, 120))
+        self.input_vault_name = toga.TextInput(style=Pack(padding=3))
+        lbl_vaultname = toga.Label("Vault Name",style=Pack(padding=3))        
+        btn_create = toga.Button("Create New", on_press=self.on_create_vault_dialog,style=Pack(padding=3))
+        box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding=15))
+        box.add(lbl_vaultname)
+        box.add(self.input_vault_name)
+        box.add(btn_create)
+        self.create_vault_dialog.content = box
+        self.create_vault_dialog.show()
 
     def pre_init(self):
         self.db = DB(DB_PATH)
@@ -163,6 +177,8 @@ class beeglacier(toga.App):
             threads = list()
             threads.append(x)
             x.start()
+
+            #x = threading.Thread(target=self.bg_refresh_upload, args=())
         else:
             if not full_path:
                 error_msg = 'File not selected'
@@ -242,7 +258,7 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_TopNav_RefreshVaults', self.refresh_vaults_button.id)
 
         # Vaults -> Top Nav -> CreateVault: Button
-        create_vault_button = toga.Button('New Vault', on_press=self.create_vault)
+        create_vault_button = toga.Button('New Vault', on_press=self.on_create_vault)
         self.nav_box.add(create_vault_button)
         global_controls.add('Vaults_TopNav_NewVault', create_vault_button.id)
 
@@ -276,19 +292,26 @@ class beeglacier(toga.App):
         upload_vault_title_box.add(label_upload_vaultname)
         global_controls.add('Vaults_Upload_VaultName', label_upload_vaultname.id)
 
+        # Vaults -> Upload -> InputFileBox
+        input_file_box = toga.Box(style=Pack(direction=ROW, flex=1, padding_top=5))
+        add_file_box.add(input_file_box)
+        global_controls.add('Vaults_Upload_InputFileBox', input_file_box.id)
+
         # Vaults -> Upload -> VaultPath: TextInput
-        self.input_path = toga.TextInput(readonly=True)
+        self.input_path = toga.TextInput(readonly=True, style=Pack(flex=2))
         self.input_path.value = ''
-        add_file_box.add(self.input_path)
+        input_file_box.add(self.input_path)
         global_controls.add('Vaults_Upload_VaultPath', self.input_path.id)
         
         # Vaults -> Upload -> SearchFile: Button
-        searchfile_upload = toga.Button('Search File', on_press=self.on_searchfile_btn)
-        add_file_box.add(searchfile_upload)
+        searchfile_upload = toga.Button('Browse', on_press=self.on_searchfile_btn, 
+                                        style=Pack(padding_left=5, flex=1))
+        input_file_box.add(searchfile_upload)
         global_controls.add('Vaults_Upload_SearchFileBtn', searchfile_upload.id)
 
         # Vaults -> Upload -> Button: Button
-        self.button_upload = toga.Button('Upload', on_press=self.on_upload_file)
+        self.button_upload = toga.Button('Upload', on_press=self.on_upload_file, 
+                                         style=Pack(padding_top=10, width=100,alignment='right'))
         add_file_box.add(self.button_upload)
         global_controls.add('Vaults_Upload_Button', self.button_upload.id)
 
@@ -366,7 +389,7 @@ class beeglacier(toga.App):
         self.pre_init()
 
         # Main: MainWindow
-        self.main_window = toga.MainWindow(title="BeeGlacier", size=(640, 600))
+        self.main_window = toga.MainWindow(title="BeeGlacier", size=(800, 525))
         global_controls.set_window(self.main_window)
 
         # Main: Box

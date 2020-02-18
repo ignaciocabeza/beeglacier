@@ -17,11 +17,17 @@ fileblock = threading.Lock()
 
 class Glacier():
 
+    current_uploads = {}
+
     def __init__(self, account_id, access_key_id, secret_access_key, region_name):
         self.access_key_id = access_key_id
         self.account_id = account_id
         self.secret_access_key = secret_access_key
         self.region_name = region_name
+
+        # maintain state of current uploads
+        #{'IDUPLOAD': {'total_parts':12, 'done_parts': 3}}
+        self.current_uploads = {}
 
     def _get_resource(self):
 
@@ -100,6 +106,7 @@ class Glacier():
             archiveDescription=arc_desc,
             partSize=str(part_size)
         )
+        self.current_uploads[response['uploadId']] = {'status':'NOT_STARTED','total_parts': 0, 'uploading': 0}
         return response['uploadId']
 
     def upload(self, vault_name, file_name, arc_desc, part_size, num_threads, upload_id):
@@ -136,6 +143,10 @@ class Glacier():
                 archiveDescription=arc_desc,
                 body=file_to_upload)
 
+            self.current_uploads[upload_id]['status'] = 'FINISHED'
+            self.current_uploads[upload_id]['total_parts'] = 1
+            self.current_uploads[upload_id]['uploading'] = 0
+            self.current_uploads[upload_id]['done'] = 1 
             print('Uploaded.')
             print('Glacier tree hash: %s' % response['checksum'])
             print('Location: %s' % response['location'])
@@ -198,6 +209,9 @@ class Glacier():
                     part_num = byte_start // part_size
                     list_of_checksums[part_num] = checksum
 
+        self.current_uploads[upload_id]['status'] = 'UPLOADING'
+        self.current_uploads[upload_id]['total_parts'] = num_parts    
+
         print('Spawning threads...')
         with concurrent.futures.ThreadPoolExecutor(
                 max_workers=num_threads) as executor:
@@ -246,6 +260,7 @@ class Glacier():
         print('Location: %s' % response['location'])
         print('Archive ID: %s' % response['archiveId'])
         print('Done.')
+        self.current_uploads[upload_id]['status'] = 'FINISHED'
         file_to_upload.close()
         return response
 
@@ -261,6 +276,7 @@ class Glacier():
         part_num = byte_pos // part_size
         percentage = part_num / num_parts
 
+        self.current_uploads[upload_id]['uploading'] += 1 
         print('Uploading part {0} of {1}... ({2:.2%})'.format(
             part_num + 1, num_parts, percentage))
 
@@ -276,7 +292,7 @@ class Glacier():
 
                 # if everything worked, then we can break
                 break
-            except:
+            except: 
                 print('Upload error:', sys.exc_info()[0])
                 print('Trying again. Part {0}'.format(part_num + 1))
         else:
@@ -284,6 +300,8 @@ class Glacier():
             print('Exiting.')
             sys.exit(1)
 
+        self.current_uploads[upload_id]['uploading'] -= 1
+        self.current_uploads[upload_id]['done'] += 1
         del part
         return checksum
 
