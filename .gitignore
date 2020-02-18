@@ -67,3 +67,4 @@ django/
 
 amazon_env
 db.sqlite
+.vscode
