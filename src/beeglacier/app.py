@@ -48,6 +48,10 @@ class beeglacier(toga.App):
     obs_selected_vault = None
 
     def callback_row_selected(self, table, row):
+        delete_vault = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
+        if delete_vault:
+            pass
+
         self.obs_selected_vault.data = row.name
 
     def bg_get_vaults_data(self):
@@ -114,6 +118,15 @@ class beeglacier(toga.App):
         # Update Vault Name input in Upload Form
         upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
         upload_vault_input.text = self.obs_selected_vault.data
+
+    def on_delete_vault(self, button):
+        if self.obs_selected_vault.data:
+            msg = "Do you want to delete '%s' " % (self.obs_selected_vault.data)
+            res = self.main_window.confirm_dialog("Delete Vault", msg)
+            if res:
+                self.glacier_instance.delete_vault(self.obs_selected_vault.data)
+        else:
+            self.main_window.error_dialog("Error", "Vault not selected")
 
     def on_create_vault_dialog(self, button):
         if self.input_vault_name.value:
@@ -261,6 +274,11 @@ class beeglacier(toga.App):
         create_vault_button = toga.Button('New Vault', on_press=self.on_create_vault)
         self.nav_box.add(create_vault_button)
         global_controls.add('Vaults_TopNav_NewVault', create_vault_button.id)
+
+        # Vaults -> Top Nav -> DeleteVault: Button
+        delete_vault_btn = toga.Button('Delete Vault', enabled=False, on_press=self.on_delete_vault)
+        global_controls.add('Vaults_TopNav_DeleteVault', delete_vault_btn.id)
+        self.nav_box.add(delete_vault_btn)
 
         # Vautls -> TableContainer: Box
         list_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding_top=5, alignment="top"))

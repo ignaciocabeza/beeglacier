@@ -63,6 +63,9 @@ class Glacier():
     def create_vault(self, vault_name):
         return self._get_client().create_vault(vaultName=vault_name)
 
+    def delete_vault(self, vault_name):
+        return self._get_client().delete_vault(vaultName=vault_name)
+
     def list_vaults(self, marker=None):
         if marker:
             vaults = self._get_client().list_vaults(marker=marker)
