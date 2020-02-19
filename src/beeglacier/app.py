@@ -33,6 +33,10 @@ HEADERS_ARCHIVES = [
     {'name': 'size', 'label': 'Size (MB)'},
 ]
 
+TEXT = {
+    'PENDING_INVENTORY_JOBS': 'Pending Inventory Jobs: ',
+}
+
 global_controls = Controls()
 
 class beeglacier(toga.App):
@@ -118,6 +122,9 @@ class beeglacier(toga.App):
         # Update Vault Name input in Upload Form
         upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
         upload_vault_input.text = self.obs_selected_vault.data
+
+    def on_btn_request_download_job(self, button):
+        print("not implemented")
 
     def on_delete_vault(self, button):
         if self.obs_selected_vault.data:
@@ -240,7 +247,7 @@ class beeglacier(toga.App):
         """
         self.archives_table.set_data([])
         jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
-        self.vault_pending_jobs.text = 'Pending Jobs: ' + str(len(jobs))
+        self.vault_pending_jobs.text = '%s %s' % (TEXT['PENDING_INVENTORY_JOBS'],str(len(jobs)))
 
         done_jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data, status='finished')
         if len(done_jobs):
@@ -338,29 +345,39 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail', self.vault_box.id)
 
         # VaultDetail -> VaultTitle: Label
-        self.vault_title = toga.Label('Selected: -')
+        self.vault_title = toga.Label('Vault selected: -', style=Pack(font_size=16, padding_bottom=5))
         self.vault_box.add(self.vault_title)
         global_controls.add('VaultDetail_VaultTitle', self.vault_title.id)
 
         # VaultDetail -> VaultPendingJobs: Label
-        self.vault_pending_jobs = toga.Label('Pending Jobs: 0')
+        self.vault_pending_jobs = toga.Label('%s 0' % (TEXT['PENDING_INVENTORY_JOBS']))
         self.vault_box.add(self.vault_pending_jobs)
         global_controls.add('VaultDetail_VaultPendingJobs', self.vault_pending_jobs.id)
-
-        # VaultDetail -> StartInventoryJobButton: Button
-        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
-        self.vault_box.add(self.btn_get_inventory)
-        global_controls.add('VaultDetail_StartInventoryJobButton', self.btn_get_inventory.id)
-
-        # VaultDetail -> CheckJobsButton: Button
-        self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
-        self.vault_box.add(self.btn_check_jobs)
-        global_controls.add('VaultDetail_CheckJobsButton', self.btn_check_jobs.id)
 
         # VaultDetail -> ArchivesTable: Table
         self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
         self.vault_box.add(self.archives_table.getbox())
         global_controls.add_from_controls(self.archives_table.getcontrols(),'VaultDetail_TableContainer_')
+
+        # VaultDetail -> BottomNav: Box
+        self.bottom_nav_vault = toga.Box(style=Pack(direction=ROW, flex=1, padding_top=5))
+        self.vault_box.add(self.bottom_nav_vault)
+        global_controls.add('Vaults_BottomNavVault', self.bottom_nav_vault.id)
+
+        # VaultDetail -> StartInventoryJobButton: Button
+        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
+        self.bottom_nav_vault.add(self.btn_get_inventory)
+        global_controls.add('VaultDetail_StartInventoryJobButton', self.btn_get_inventory.id)
+
+        # VaultDetail -> CheckJobsButton: Button
+        self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
+        self.bottom_nav_vault.add(self.btn_check_jobs)
+        global_controls.add('VaultDetail_CheckJobsButton', self.btn_check_jobs.id)
+
+        # VaultDetail -> StartDownloadArchiveJobButton: Button
+        self.btn_request_download_job = toga.Button('Start Download Archive Job', on_press=self.on_btn_request_download_job)
+        self.bottom_nav_vault.add(self.btn_request_download_job)
+        global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
         # credentials
         fields = [
