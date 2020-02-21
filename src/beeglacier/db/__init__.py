@@ -40,7 +40,7 @@ class DB:
         c = self.conn.cursor()
         c.execute(check_sql)
         if not c.fetchone():
-            create_sql = "CREATE TABLE jobs (id, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response);"
+            create_sql = "CREATE TABLE jobs (id, archiveid, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response);"
             c.execute(create_sql)
             self.conn.commit()
 
@@ -81,9 +81,9 @@ class DB:
         c.execute(sql)
         self.conn.commit() 
 
-    def create_job(self, id, job_id, job_type):
-        sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done) " + \
-              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0);" % (id, job_id, job_type)
+    def create_job(self, id, job_id, job_type, archive_id=''):
+        sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done, archiveid) " + \
+              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0, '%s');" % (id, job_id, job_type, archive_id)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 

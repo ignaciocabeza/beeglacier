@@ -138,8 +138,13 @@ class beeglacier(toga.App):
         upload_vault_input.text = self.obs_selected_vault.data
 
     def on_btn_request_download_job(self, button):
-        response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, self.obs_selected_archive.data)
-        self.db.create_job(self.obs_selected_vault.data, response.id, 'archive')
+        target_archive = list( filter(lambda x: x['archivedescription']==self.obs_selected_archive.data, self.obs_data_archives.data) )  
+        print(target_archive)
+        if target_archive:
+            archive_id = target_archive[0]['archiveid']
+            # TO-DO: Create confirm dialog
+            response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, archive_id)
+            self.db.create_job(self.obs_selected_vault.data, response.id, 'archive', archive_id=archive_id)
 
     def on_delete_vault(self, button):
 
@@ -407,9 +412,14 @@ class beeglacier(toga.App):
         self.archive_selected_box.add(self.archive_title)
         global_controls.add('VaultDetail_ArchiveTitle', self.archive_title.id)
 
+        # VaultDetail -> ArchiveDownloadBox: Box
+        self.archive_download_box = toga.Box(style=Pack(direction=ROW, flex=1, padding_top=3))
+        self.archive_selected_box.add(self.archive_download_box)
+        global_controls.add('Vaults_ArchiveDownloadBox', self.archive_download_box.id)
+
         # VaultDetail -> StartDownloadArchiveJobButton: Button
         self.btn_request_download_job = toga.Button('Start Download Archive Job', on_press=self.on_btn_request_download_job)
-        self.archive_selected_box.add(self.btn_request_download_job)
+        self.archive_download_box.add(self.btn_request_download_job)
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
         # credentials
