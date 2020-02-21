@@ -30,13 +30,15 @@ This is an alpha test application for managing Amazon Glacier Storage made with 
 - ~~create table for store inventory jobs~~
 - ~~add "Vault details" screen (for view all the files in a vault)~~
 - ~~add file dialog for selecting file to upload~~
-- refactor upload form
+- ~~refactor upload form~~
+- ~~improve ui in 'vault details' option~~
+- ~~code new vault button~~
+- ~~add 'delete vault'~~
 - stop and resume upload
-- code new vault button
-- add 'delete vault'
 - add 'delete archive'
-- improve ui in 'vault details' option
-
+- Verify if Start download archive job is working
+- Make Pending jobs label for download archive
+- Make download archive feature
 
 ## Breware Info
 

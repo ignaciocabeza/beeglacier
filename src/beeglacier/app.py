@@ -49,7 +49,9 @@ class beeglacier(toga.App):
     region_name = None
     # observables datas
     obs_data_vaults = None
+    obs_data_archives = None
     obs_selected_vault = None
+    obs_selected_archive = None
 
     def callback_row_selected(self, table, row):
         delete_vault = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
@@ -57,6 +59,11 @@ class beeglacier(toga.App):
             pass
 
         self.obs_selected_vault.data = row.name
+
+    def callback_row_selected_archive(self, table, row):
+        if row:
+            print (row.filename)
+            self.obs_selected_archive.data = row.filename
 
     def bg_get_vaults_data(self):
         # get account info
@@ -114,6 +121,13 @@ class beeglacier(toga.App):
         # observable function from data_vaults object
         self.vaults_table.set_data(self.obs_data_vaults.data)
 
+    def obs_data_table_archives(self, test):
+        self.archives_table.set_data(self.obs_data_archives.data)
+
+    def obs_selected_archive_callback(self, test):
+        label_selected_arcvhie = global_controls.get_control_by_name('VaultDetail_ArchiveTitle')
+        label_selected_arcvhie.text = "Archive Selected: " + self.obs_selected_archive.data
+
     def obs_selected_vault_callback(self, test):
         # Update selected Vault in 'Vault Detail' Option
         label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
@@ -124,9 +138,18 @@ class beeglacier(toga.App):
         upload_vault_input.text = self.obs_selected_vault.data
 
     def on_btn_request_download_job(self, button):
-        print("not implemented")
+        response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, self.obs_selected_archive.data)
+        self.db.create_job(self.obs_selected_vault.data, response.id, 'archive')
 
     def on_delete_vault(self, button):
+
+        # check if vault has archvies.
+        target_vault = list( filter(lambda x: x['vaultname']==self.obs_selected_vault.data, self.obs_data_vaults.data) )  
+        if len(target_vault) and target_vault[0]['numberofarchives'] > 0:
+            self.main_window.error_dialog('Error', 'Cannot delete a vault with archives inside')
+            return None
+        
+        # confirmation dialog
         if self.obs_selected_vault.data:
             msg = "Do you want to delete '%s' " % (self.obs_selected_vault.data)
             res = self.main_window.confirm_dialog("Delete Vault", msg)
@@ -245,7 +268,7 @@ class beeglacier(toga.App):
             - Get Pending Jobs
             - Populate Vault Archive Table
         """
-        self.archives_table.set_data([])
+        self.obs_data_archives.data = []
         jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
         self.vault_pending_jobs.text = '%s %s' % (TEXT['PENDING_INVENTORY_JOBS'],str(len(jobs)))
 
@@ -259,7 +282,7 @@ class beeglacier(toga.App):
                 new_row['size'] = round(new_row['size']/1024/1024,2)
                 data.append(new_row)
 
-            self.archives_table.set_data(data)
+            self.obs_data_archives.data = data
 
     def create_controls(self):
 
@@ -355,7 +378,7 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail_VaultPendingJobs', self.vault_pending_jobs.id)
 
         # VaultDetail -> ArchivesTable: Table
-        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected)
+        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected_archive)
         self.vault_box.add(self.archives_table.getbox())
         global_controls.add_from_controls(self.archives_table.getcontrols(),'VaultDetail_TableContainer_')
 
@@ -374,9 +397,19 @@ class beeglacier(toga.App):
         self.bottom_nav_vault.add(self.btn_check_jobs)
         global_controls.add('VaultDetail_CheckJobsButton', self.btn_check_jobs.id)
 
+        # VaultDetail -> ArchiveBox: Box
+        self.archive_selected_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding_top=15))
+        self.vault_box.add(self.archive_selected_box)
+        global_controls.add('Vaults_ArchiveBox', self.archive_selected_box.id)
+
+        # VaultDetail -> VaultTitle: Label
+        self.archive_title = toga.Label('Archive selected: -', style=Pack(font_size=16, padding_bottom=5))
+        self.archive_selected_box.add(self.archive_title)
+        global_controls.add('VaultDetail_ArchiveTitle', self.archive_title.id)
+
         # VaultDetail -> StartDownloadArchiveJobButton: Button
         self.btn_request_download_job = toga.Button('Start Download Archive Job', on_press=self.on_btn_request_download_job)
-        self.bottom_nav_vault.add(self.btn_request_download_job)
+        self.archive_selected_box.add(self.btn_request_download_job)
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
         # credentials
@@ -443,8 +476,14 @@ class beeglacier(toga.App):
         self.obs_data_vaults = ObsData()
         self.obs_data_vaults.bind_to(self.obs_data_table)
 
+        self.obs_data_archives = ObsData()
+        self.obs_data_archives.bind_to(self.obs_data_table_archives)
+
         self.obs_selected_vault = ObsData(None)
         self.obs_selected_vault.bind_to(self.obs_selected_vault_callback)
+
+        self.obs_selected_archive = ObsData(None)
+        self.obs_selected_archive.bind_to(self.obs_selected_archive_callback)
 
         # get last retrieve of vaults from database 
         vaults_db = self.db.get_vaults(self.account_id)
