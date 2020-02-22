@@ -82,8 +82,11 @@ class Glacier():
     def initiate_archive_retrieval(self, vault_name, archive_id):
         return self.get_archive(vault_name, archive_id).initiate_archive_retrieval()
 
-    def get_job_output(self, vault_name, job_id):
-        return self._get_client().get_job_output(vaultName=vault_name, jobId=job_id)
+    def get_job_output(self, vault_name, job_id, range = None):
+        if range:
+            return self._get_client().get_job_output(vaultName=vault_name, jobId=job_id, range=range)
+        else:
+            return self._get_client().get_job_output(vaultName=vault_name, jobId=job_id)
         
     def describe_job(self, vault_name, job_id):
         return self._get_client().describe_job(vaultName=vault_name, jobId=job_id)

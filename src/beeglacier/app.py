@@ -9,6 +9,7 @@ from pathlib import Path
 import threading
 import ntpath
 import json
+import tempfile
 
 import toga
 from toga.style import Pack
@@ -153,25 +154,73 @@ class beeglacier(toga.App):
         upload_vault_input.text = self.obs_selected_vault.data
 
     def on_btn_download_archive(self, button):
+        #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
         archive = self.get_archive_from_data(self.obs_selected_archive.data)
+        file_path_temp = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data + '.downloading'
+        file_path_final = file_path = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data
+
         if archive:
             jobs = self.db.get_archive_jobs(archive['archiveid'])
             if jobs:
                 job_id = jobs[0][0]
                 
                 job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
+                print (job_description)
                 if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
-                    job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id)
+                    archive_checksum = job_description['ArchiveSHA256TreeHash']
                     
-                    if job_result['status'] == 200:
+                    # size of the file
+                    size = job_description['ArchiveSizeInBytes']
+                    #print (size)
+                    # 4mb parts
+                    part_size = 1024 * 1024 * 1
+
+                    # amount of parts
+                    parts = int(size) // part_size + 1
+
+                    # requests parts
+                    for part_index in range(parts):
+                        start_range= part_size * part_index
+
+                        if size - part_size * part_index  < part_size:
+                            #last part
+                            end_range = size - 1
+                        else:
+                            end_range = part_size * part_index + part_size - 1
                         
-                        file_path = '/users/ignaciocabeza/downloads/' + job_result['archiveDescription']
-                        f = open(file_path,'wb+')
-                        f.write(job_result['body'].read())
-                        f.close()
+                        param_range = 'bytes=%s-%s' %(str(start_range),str(end_range))
+                        #print(param_range)
+                        job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id, range=param_range)
+                        #print (job_result)
+                        if job_result['status'] == 206:
+                            body = job_result['body'].read()
+                            response_checksum = job_result['checksum']
+                            #print(response_checksum)
 
-                        #self.db.update_job(job_id, job_dict ,1)
+                            fpart = tempfile.TemporaryFile()
+                            fpart.write(body)
+                            downloaded_checksum = self.glacier_instance.calculate_tree_hash(body, part_size)
+                            fpart.close()
+                            #print(downloaded_checksum)
+                            
+                            if response_checksum==downloaded_checksum:
+                                #checksum is ok - write
+                                print(part_index)
+                                f = open(file_path_temp,'ab+')
+                                f.write(body)
+                                f.close()
 
+                            #self.db.update_job(job_id, job_dict ,1)
+
+                    import os
+                    os.rename(file_path_temp, file_path_final)
+                    # check archive checksum    
+                    #downloaded_checksum = self.glacier_instance.calculate_tree_hash(open(file_path_final,'r').read(), size)
+                    #print(archive_checksum)
+                    #print(downloaded_checksum)
+                    #if archive_checksum==downloaded_checksum:
+                    #    print('ok')
+                        
     def on_btn_request_download_job(self, button):
         archive = self.get_archive_from_data(self.obs_selected_archive.data)
         if archive:
