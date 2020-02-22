@@ -35,6 +35,7 @@ HEADERS_ARCHIVES = [
 
 TEXT = {
     'PENDING_INVENTORY_JOBS': 'Pending Inventory Jobs: ',
+    'PENDING_ARCHIVE_JOBS': 'Pending Download Jobs: ',
 }
 
 global_controls = Controls()
@@ -124,9 +125,23 @@ class beeglacier(toga.App):
     def obs_data_table_archives(self, test):
         self.archives_table.set_data(self.obs_data_archives.data)
 
+    def get_archive_from_data(self, archivename):
+        target_archive = list( filter(lambda x: x['archivedescription']==self.obs_selected_archive.data, self.obs_data_archives.data) )
+        if target_archive:
+            return target_archive[0]
+        else:
+            return None
+
     def obs_selected_archive_callback(self, test):
-        label_selected_arcvhie = global_controls.get_control_by_name('VaultDetail_ArchiveTitle')
-        label_selected_arcvhie.text = "Archive Selected: " + self.obs_selected_archive.data
+        label_selected_archive = global_controls.get_control_by_name('VaultDetail_ArchiveTitle')
+        label_selected_archive.text = "Archive Selected: " + self.obs_selected_archive.data
+
+        archive = self.get_archive_from_data(self.obs_selected_archive.data)
+        if archive:
+            jobs = self.db.get_archive_jobs(archive['archiveid'])
+            count_jobs = len(jobs)
+            label_pending_downloads = global_controls.get_control_by_name('VaultDetail_PendingDownload')
+            label_pending_downloads.text = '%s %s' % (TEXT['PENDING_ARCHIVE_JOBS'],str(count_jobs))
 
     def obs_selected_vault_callback(self, test):
         # Update selected Vault in 'Vault Detail' Option
@@ -137,11 +152,31 @@ class beeglacier(toga.App):
         upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
         upload_vault_input.text = self.obs_selected_vault.data
 
+    def on_btn_download_archive(self, button):
+        archive = self.get_archive_from_data(self.obs_selected_archive.data)
+        if archive:
+            jobs = self.db.get_archive_jobs(archive['archiveid'])
+            if jobs:
+                job_id = jobs[0][0]
+                
+                job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
+                if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
+                    job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id)
+                    
+                    if job_result['status'] == 200:
+                        
+                        file_path = '/users/ignaciocabeza/downloads/' + job_result['archiveDescription']
+                        f = open(file_path,'wb+')
+                        f.write(job_result['body'].read())
+                        f.close()
+
+                        #self.db.update_job(job_id, job_dict ,1)
+
     def on_btn_request_download_job(self, button):
-        target_archive = list( filter(lambda x: x['archivedescription']==self.obs_selected_archive.data, self.obs_data_archives.data) )  
-        print(target_archive)
-        if target_archive:
-            archive_id = target_archive[0]['archiveid']
+        archive = self.get_archive_from_data(self.obs_selected_archive.data)
+        if archive:
+            archive_id = archive['archiveid']
+            
             # TO-DO: Create confirm dialog
             response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, archive_id)
             self.db.create_job(self.obs_selected_vault.data, response.id, 'archive', archive_id=archive_id)
@@ -408,12 +443,17 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_ArchiveBox', self.archive_selected_box.id)
 
         # VaultDetail -> VaultTitle: Label
-        self.archive_title = toga.Label('Archive selected: -', style=Pack(font_size=16, padding_bottom=5))
+        self.archive_title = toga.Label('Archive selected: -', style=Pack(font_size=16, padding_bottom=1))
         self.archive_selected_box.add(self.archive_title)
         global_controls.add('VaultDetail_ArchiveTitle', self.archive_title.id)
 
+        # VaultDetail -> PendingDownload: Label
+        vault_pending_archive_down = toga.Label('%s 0' % (TEXT['PENDING_ARCHIVE_JOBS']))
+        self.archive_selected_box.add(vault_pending_archive_down)
+        global_controls.add('VaultDetail_PendingDownload', vault_pending_archive_down.id)
+
         # VaultDetail -> ArchiveDownloadBox: Box
-        self.archive_download_box = toga.Box(style=Pack(direction=ROW, flex=1, padding_top=3))
+        self.archive_download_box = toga.Box(style=Pack(direction=ROW, flex=1, padding_top=4))
         self.archive_selected_box.add(self.archive_download_box)
         global_controls.add('Vaults_ArchiveDownloadBox', self.archive_download_box.id)
 
@@ -421,6 +461,11 @@ class beeglacier(toga.App):
         self.btn_request_download_job = toga.Button('Start Download Archive Job', on_press=self.on_btn_request_download_job)
         self.archive_download_box.add(self.btn_request_download_job)
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
+
+        # VaultDetail -> StartDownloadArchiveJobButton: Button
+        self.btn_download_archive = toga.Button('Download', on_press=self.on_btn_download_archive)
+        self.archive_download_box.add(self.btn_download_archive)
+        global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
 
         # credentials
         fields = [
@@ -467,7 +512,7 @@ class beeglacier(toga.App):
         self.pre_init()
 
         # Main: MainWindow
-        self.main_window = toga.MainWindow(title="BeeGlacier", size=(800, 525))
+        self.main_window = toga.MainWindow(title="BeeGlacier", size=(800, 540))
         global_controls.set_window(self.main_window)
 
         # Main: Box

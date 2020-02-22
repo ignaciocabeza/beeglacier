@@ -102,6 +102,21 @@ class DB:
         c.execute(select_sql)
         jobs = c.fetchall()
         return jobs
+    
+    def get_archive_jobs(self, archiveid, status = 'pending'):
+        done = ' AND done=0 '
+        order = 'created_at'
+        if status == 'all':
+            done = ' '
+        if status == 'finished':
+            done = ' AND done=1 '
+            order = 'updated_at'
+            
+        select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE archiveid='%s' %s ORDER BY %s DESC;" % (archiveid, done, order)
+        c = self.conn.cursor()
+        c.execute(select_sql)
+        jobs = c.fetchall()
+        return jobs
 
     def update_job(self, job_id, response, status):
         sql = "UPDATE jobs SET response='%s', done=%s, updated_at=CAST(strftime('%%s','now') as INTEGER) " + \

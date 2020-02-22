@@ -1,6 +1,6 @@
 # BeeGlacier
 
-This is an  application for managing Amazon Glacier Storage made with Beeware.
+This is an  application for managing Amazon Glacier Storage made with Beeware.git
 
 ## Dowload
 
@@ -39,10 +39,16 @@ briefcase dev
 
 ## To-do
 
-- [Upload Archive] Stop, Cancel and Resume Uploads
-- [Archive] Delete
-- [Download Archive] Check if Archive download job is ready to download
-- [Download Archive] Create confirm dialog before creating a Archive download Job
+- [ ] [Upload Archive] Stop, Cancel and Resume Uploads
+- [ ] [Delete Archive] Make delete archive feature
+- [ ] [Download Archive] Async Download
+- [ ] [Download Archive] Progress Bar when donwload
+- [ ] [Download Archive] Select Destination folder when download
+- [ ] [Download Archive] Avoid new download job if is already one job with status pending
+- [ ] [Download Archive] Update state when download job is expired
+- [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
+- [ ] [Download Archive] Select type of download when you start a archive donwload job
+- [ ] [Sytem Wide] Show how much cost($) each action (Download, Upload, etc)
 
 ## Beeware
 
