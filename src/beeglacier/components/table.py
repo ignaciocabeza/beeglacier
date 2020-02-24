@@ -8,10 +8,7 @@ from .base import Base
 class Table(Base):
 
     _headers = []
-    _data = []
-
     _toga_table = None
-    _on_row_selected_custom = None
 
     def __init__(self, **kwargs):
         super().__init__()
@@ -19,6 +16,10 @@ class Table(Base):
         # Observable for selected Row
         self._selected_row = None
         self._observers_selected_row = []
+
+        # Observable for data change
+        self._data = []
+        self._observers_data_change = []
 
         if 'headers' in kwargs.keys():
             # set headers. Ex.:
@@ -28,10 +29,6 @@ class Table(Base):
             #   {'name': 'sizeinbytes', 'label': 'Size (MB)'},
             # ]
             self._headers = kwargs['headers']
-
-        if 'on_row_selected' in kwargs.keys():
-            # Save callback fn for row selected
-            self._on_row_selected_custom = kwargs['on_row_selected']
 
         # create Toga Table
         table_style = Pack(height=300,direction=COLUMN)
@@ -53,33 +50,25 @@ class Table(Base):
         self._selected_row = value
         for callback in self._observers_selected_row:
             callback(self._selected_row)
-    
-    def subscribe(self, event, callback):
-        if event == 'on_select_row':
-            self._observers_selected_row.append(callback)
 
-    def _get_header_labels(self):
-        return [header['label'] for header in self._headers]
+    @property
+    def data(self):
+        return self._data
 
-    def _get_header_names(self):
-        return [header['name'] for header in self._headers]
-
-    def _on_row_selected(self, table, row):
-        """ Handler for toga.Table() on_select
+    @data.setter
+    def data(self, value):
+        """ Only for internal use
         """
-        filter_row = list(filter(lambda x: x['___id'] == getattr(row, '___id'), self._data))
-        if len(filter_row) > 0:
-            self.selected_row = filter_row[0]  
-        #self.selected_row = row
-
-    def set_data(self, data):
-
+        
         # [
         #   {'vaultname': 'test', 'numberofarchives': '2', 'sizeinbytes': '23.45' }
         #   {'vaultname': 'test 2', 'numberofarchives': '4', 'sizeinbytes': '60.45' }
         # ]
+        
+        #remove exsiting data
+        self._toga_table.data = []
 
-        self._data = data
+        self._data = value
         headers = self._get_header_names()
         
         index = 0
@@ -100,3 +89,26 @@ class Table(Base):
             # add object row to self._data (row)
             row['_row'] = row_added
             index += 1
+
+        for callback in self._observers_data_change:
+            callback(self._data)
+    
+    def subscribe(self, event, callback):
+        if event == 'on_select_row':
+            self._observers_selected_row.append(callback)
+        if event == 'on_data_change':
+            self._observers_data_change.append(callback)
+
+    def _get_header_labels(self):
+        return [header['label'] for header in self._headers]
+
+    def _get_header_names(self):
+        return [header['name'] for header in self._headers]
+
+    def _on_row_selected(self, table, row):
+        """ Handler for toga.Table() on_select
+        """
+        if row:
+            filter_row = list(filter(lambda x: x['___id'] == getattr(row, '___id'), self._data))
+            if len(filter_row) > 0:
+                self.selected_row = filter_row[0]

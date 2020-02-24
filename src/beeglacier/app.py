@@ -22,6 +22,7 @@ from .components.table import Table
 from .utils import ObsData, Controls
 from .utils.aws import Glacier
 from .utils.strings import TEXT
+from .utils.styles import STYLES
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 HEADERS = [
@@ -46,41 +47,60 @@ class beeglacier(toga.App):
     secret_key = None
     region_name = None
 
+    bgtasks = list()
+
     # observables datas
     obs_data_archives = None
     obs_selected_vault = None
     obs_selected_archive = None
 
+    def _connect_db_and_glacier(self):
+        db = DB(DB_PATH)
+        aid, akey, skey, reg = db.get_account()
+        glacier_instance = Glacier(aid, akey, skey, reg)
+        return db, glacier_instance
+
+    def _update_control_label(self, name, value):
+        """ Given a name, update label text.
+        """
+        control = global_controls.get_control_by_name(name)
+        if type(control) == toga.Label:
+            control.text = value
+        if type(control) == toga.Button:
+            control.label = value
+        
+        # forcing resizing 
+        control.refresh()
+
+    def _execute_bg_task(self, task, *args, **kwargs):
+        """ Execute a task in background to avoid freezing UI
+        """
+        x = threading.Thread(target=task, args=args, kwargs=kwargs)
+        self.bgtasks.append(x)
+        x.start()
+
     def callback_row_selected(self, row):
-        vault_name = row['vaultname']
-
-        # Update selected Vault in 'Vault Detail' Option
-        label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
-        label_selected_vault.text = "Selected: " + vault_name
-
-        # Update Vault Name input in Upload Form
-        upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
-        upload_vault_input.text = vault_name
-
-    def callback_row_selected_archive(self, table, row):
-        if row:
-            print (row.filename)
-            self.obs_selected_archive.data = row.filename
+        """ Callback when vault row is selected
+        """
+        # Update Labels
+        selected_vault_text = TEXT['LABEL_SELECTED_VAULT'] % (row['vaultname'])
+        self._update_control_label('VaultDetail_VaultTitle', selected_vault_text)
+        upload_vault_text = TEXT['LABEL_UPLOAD_VAULT'] % (row['vaultname'])
+        self._update_control_label('Vaults_Upload_VaultName', upload_vault_text)
+        delete_vault_text = TEXT['BTN_DELETE_VAULT'] % (row['vaultname'])
+        self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
 
     def bg_get_vaults_data(self):
-        # get account info
-        db = DB(DB_PATH)
-        account_id, access_key, secret_key, region_name = db.get_account()
-        
-        # create glacier instance
-        glacier_instance = Glacier(account_id,
-                                access_key,
-                                secret_key,
-                                region_name)
+        # get account info and create glacier instance
+        # In background task is necessary to do this
+        db, glacier = self._connect_db_and_glacier()
+
+        self._update_control_label('Vaults_TopNav_RefreshVaults', 
+                                   TEXT['BTN_REFRESH_VAULTS_LOADING'])
 
         # retrieve all vaults of that account
         data = []
-        vaults_response = glacier_instance.list_vaults()
+        vaults_response = glacier.list_vaults()
         vaults = vaults_response["VaultList"]
         while vaults:
             # insert vault to data
@@ -91,20 +111,25 @@ class beeglacier(toga.App):
 
             # obtain the next page of vaults
             if 'Marker' in vaults_response.keys():
-                vaults_response = glacier_instance.list_vaults(marker=vaults_response['Marker'])
+                vaults_response = glacier.list_vaults(marker=vaults_response['Marker'])
                 vaults = vaults_response["VaultList"]
             else:
                 vaults = []
 
         # save to database
-        db.create_vaults(account_id, json.dumps(data))
+        db.create_vaults(glacier.account_id, json.dumps(data))
 
         # update table
-        self.vaults_table.set_data(data) 
+        self.vaults_table.data = data
 
         # refresh UI
-        self.refresh_vaults_button.label = TEXT['BTN_REFRESH_VAULTS']
-        self.refresh_vaults_button.refresh()
+        self._update_control_label('Vaults_TopNav_RefreshVaults', 
+                                   TEXT['BTN_REFRESH_VAULTS'])
+
+    def callback_row_selected_archive(self, table, row):
+        if row:
+            print (row.filename)
+            self.obs_selected_archive.data = row.filename
 
     def bg_upload_file(self, vault, path):
         db = DB(DB_PATH)
@@ -119,8 +144,24 @@ class beeglacier(toga.App):
         response = self.glacier_instance.upload(vault, path, filename, part_size, 4, upload_id)
         db.save_upload_response(upload_id, json.dumps(response))
 
+    def bg_delete_vault(self, *args, **kwargs):
+        db, glacier = self._connect_db_and_glacier()
+        
+        if 'vaultname' in kwargs:
+            vaultname = kwargs['vaultname']
+            # Update text
+            delete_vault_loading = TEXT['BTN_DELETE_VAULT_LOADING'] % (vaultname)
+            self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_loading)
+            # delete
+            glacier.delete_vault(vaultname)
+            # Update text
+            delete_vault_text = TEXT['BTN_DELETE_VAULT'] % (vaultname)
+            self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
+            # refresh
+            self.bg_get_vaults_data()
+
     def obs_data_table_archives(self, test):
-        self.archives_table.set_data(self.obs_data_archives.data)
+        self.archives_table.data = self.obs_data_archives.data
 
     def get_archive_from_data(self, archivename):
         target_archive = list( filter(lambda x: x['archivedescription']==self.obs_selected_archive.data, self.obs_data_archives.data) )
@@ -139,16 +180,6 @@ class beeglacier(toga.App):
             count_jobs = len(jobs)
             label_pending_downloads = global_controls.get_control_by_name('VaultDetail_PendingDownload')
             label_pending_downloads.text = '%s %s' % (TEXT['PENDING_ARCHIVE_JOBS'],str(count_jobs))
-
-    def obs_selected_vault_callback(self, test):
-        # Update selected Vault in 'Vault Detail' Option
-        #label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
-        #label_selected_vault.text = "Selected: " + self.obs_selected_vault.data
-
-        # Update Vault Name input in Upload Form
-        #upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
-        #upload_vault_input.text = self.obs_selected_vault.data
-        pass
 
     def on_btn_download_archive(self, button):
         #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
@@ -229,20 +260,24 @@ class beeglacier(toga.App):
 
     def on_delete_vault(self, button):
 
+        if not self.vaults_table.selected_row:
+            self.main_window.error_dialog("Error", TEXT['ERROR_NOT_SELECTED_VAULT'])
+            return None
+
+        vaultname = self.vaults_table.selected_row['vaultname']
+        numberofarchives = self.vaults_table.selected_row['numberofarchives']
+
         # check if vault has archvies.
-        target_vault = list( filter(lambda x: x['vaultname']==self.obs_selected_vault.data, self.obs_data_vaults.data) )  
-        if len(target_vault) and target_vault[0]['numberofarchives'] > 0:
-            self.main_window.error_dialog('Error', 'Cannot delete a vault with archives inside')
+        if numberofarchives > 0:
+            self.main_window.error_dialog('Error', TEXT['ERROR_DELETE_VAULT_FILES'])
             return None
         
         # confirmation dialog
-        if self.obs_selected_vault.data:
-            msg = "Do you want to delete '%s' " % (self.obs_selected_vault.data)
-            res = self.main_window.confirm_dialog("Delete Vault", msg)
-            if res:
-                self.glacier_instance.delete_vault(self.obs_selected_vault.data)
-        else:
-            self.main_window.error_dialog("Error", "Vault not selected")
+        msg = TEXT['DIALOG_DELETE_VAULT'] % (vaultname)
+        response = self.main_window.confirm_dialog("Delete Vault", msg)
+        if response:
+            # execute task
+            self._execute_bg_task(self.bg_delete_vault, vaultname=vaultname)
 
     def on_create_vault_dialog(self, button):
         if self.input_vault_name.value:
@@ -285,15 +320,8 @@ class beeglacier(toga.App):
                              self.secret_key, self.region_name)
 
     def on_refresh_vaults(self, button, **kwargs):
-        # callback for button
-        self.refresh_vaults_button.label = "Loading...     "
-        self.refresh_vaults_button.refresh()
-
-        # fetch data with a thread
-        x = threading.Thread(target=self.bg_get_vaults_data, args=())
-        threads = list()
-        threads.append(x)
-        x.start()
+        # fetch data with threading
+        self._execute_bg_task(self.bg_get_vaults_data)
 
     def on_upload_file(self, button):
         input_path = global_controls.get_control_by_name('Vaults_Upload_VaultPath')
@@ -415,17 +443,13 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_Upload', add_file_box.id)
 
         # Vaults -> Upload -> Title: Box
-        upload_vault_title_box = toga.Box(style=Pack(direction=ROW, flex=1))
+        upload_vault_title_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         add_file_box.add(upload_vault_title_box)
         global_controls.add('Vaults_Upload_Title', upload_vault_title_box.id)
 
-        # Vaults -> Upload -> Title -> Label: Label
-        vault_title_label = toga.Label('Upload to Vault:',style=Pack(font_size=16, padding_bottom=5))
-        upload_vault_title_box.add(vault_title_label)
-        global_controls.add('Vaults_Upload_Title_Label', vault_title_label.id)
-
-        # Vaults -> Upload -> VaultName: TextInput
-        label_upload_vaultname = toga.Label('',style=Pack(font_size=16, padding_left=5, width=200))
+        # Vaults -> Upload -> VaultName: Label
+        upload_label = TEXT['LABEL_UPLOAD_VAULT'] % ('-')
+        label_upload_vaultname = toga.Label(upload_label,style=STYLES['TITLE'])
         upload_vault_title_box.add(label_upload_vaultname)
         global_controls.add('Vaults_Upload_VaultName', label_upload_vaultname.id)
 
@@ -582,16 +606,13 @@ class beeglacier(toga.App):
         self.obs_data_archives = ObsData()
         self.obs_data_archives.bind_to(self.obs_data_table_archives)
 
-        self.obs_selected_vault = ObsData(None)
-        self.obs_selected_vault.bind_to(self.obs_selected_vault_callback)
-
         self.obs_selected_archive = ObsData(None)
         self.obs_selected_archive.bind_to(self.obs_selected_archive_callback)
 
         # get last retrieve of vaults from database 
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
-            self.vaults_table.set_data(json.loads(vaults_db))
+            self.vaults_table.data = json.loads(vaults_db)
 
 
 def main():
