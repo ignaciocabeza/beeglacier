@@ -21,6 +21,7 @@ from .components.form import Form
 from .components.table import Table
 from .utils import ObsData, Controls
 from .utils.aws import Glacier
+from .utils.strings import TEXT
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 HEADERS = [
@@ -34,11 +35,6 @@ HEADERS_ARCHIVES = [
     {'name': 'size', 'label': 'Size (MB)'},
 ]
 
-TEXT = {
-    'PENDING_INVENTORY_JOBS': 'Pending Inventory Jobs: ',
-    'PENDING_ARCHIVE_JOBS': 'Pending Download Jobs: ',
-}
-
 global_controls = Controls()
 
 class beeglacier(toga.App):
@@ -49,18 +45,22 @@ class beeglacier(toga.App):
     access_key = None
     secret_key = None
     region_name = None
+
     # observables datas
-    obs_data_vaults = None
     obs_data_archives = None
     obs_selected_vault = None
     obs_selected_archive = None
 
-    def callback_row_selected(self, table, row):
-        delete_vault = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
-        if delete_vault:
-            pass
+    def callback_row_selected(self, row):
+        vault_name = row['vaultname']
 
-        self.obs_selected_vault.data = row.name
+        # Update selected Vault in 'Vault Detail' Option
+        label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
+        label_selected_vault.text = "Selected: " + vault_name
+
+        # Update Vault Name input in Upload Form
+        upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
+        upload_vault_input.text = vault_name
 
     def callback_row_selected_archive(self, table, row):
         if row:
@@ -99,11 +99,11 @@ class beeglacier(toga.App):
         # save to database
         db.create_vaults(account_id, json.dumps(data))
 
-        # update observer
-        self.obs_data_vaults.data = data
+        # update table
+        self.vaults_table.set_data(data) 
 
         # refresh UI
-        self.refresh_vaults_button.label = "Refresh Vaults"
+        self.refresh_vaults_button.label = TEXT['BTN_REFRESH_VAULTS']
         self.refresh_vaults_button.refresh()
 
     def bg_upload_file(self, vault, path):
@@ -118,10 +118,6 @@ class beeglacier(toga.App):
 
         response = self.glacier_instance.upload(vault, path, filename, part_size, 4, upload_id)
         db.save_upload_response(upload_id, json.dumps(response))
-
-    def obs_data_table(self, test):
-        # observable function from data_vaults object
-        self.vaults_table.set_data(self.obs_data_vaults.data)
 
     def obs_data_table_archives(self, test):
         self.archives_table.set_data(self.obs_data_archives.data)
@@ -146,12 +142,13 @@ class beeglacier(toga.App):
 
     def obs_selected_vault_callback(self, test):
         # Update selected Vault in 'Vault Detail' Option
-        label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
-        label_selected_vault.text = "Selected: " + self.obs_selected_vault.data
+        #label_selected_vault = global_controls.get_control_by_name('VaultDetail_VaultTitle')
+        #label_selected_vault.text = "Selected: " + self.obs_selected_vault.data
 
         # Update Vault Name input in Upload Form
-        upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
-        upload_vault_input.text = self.obs_selected_vault.data
+        #upload_vault_input = global_controls.get_control_by_name('Vaults_Upload_VaultName')
+        #upload_vault_input.text = self.obs_selected_vault.data
+        pass
 
     def on_btn_download_archive(self, button):
         #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
@@ -357,11 +354,13 @@ class beeglacier(toga.App):
             - Get Pending Jobs
             - Populate Vault Archive Table
         """
+        selected_vault_name = self.vaults_table.selected_row['vaultname']
+
         self.obs_data_archives.data = []
-        jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data)
+        jobs = self.db.get_inventory_jobs(selected_vault_name)
         self.vault_pending_jobs.text = '%s %s' % (TEXT['PENDING_INVENTORY_JOBS'],str(len(jobs)))
 
-        done_jobs = self.db.get_inventory_jobs(self.obs_selected_vault.data, status='finished')
+        done_jobs = self.db.get_inventory_jobs(selected_vault_name, status='finished')
         if len(done_jobs):
             last_job_done = json.loads(done_jobs[0][1])
             list_archives = last_job_done['ArchiveList']
@@ -385,7 +384,7 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_TopNav', self.nav_box.id)
 
         # Vaults -> Top Nav -> RefreshVautls: Button
-        self.refresh_vaults_button = toga.Button('Refresh Vaults', on_press=self.on_refresh_vaults)
+        self.refresh_vaults_button = toga.Button(TEXT['BTN_REFRESH_VAULTS'], on_press=self.on_refresh_vaults)
         self.nav_box.add(self.refresh_vaults_button)
         global_controls.add('Vaults_TopNav_RefreshVaults', self.refresh_vaults_button.id)
 
@@ -405,7 +404,8 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_TableContainer', list_box.id)
 
         # Vautls -> TableContainer -> VaultsTable: Table
-        self.vaults_table = Table(headers=HEADERS, on_row_selected=self.callback_row_selected)
+        self.vaults_table = Table(headers=HEADERS)
+        self.vaults_table.subscribe('on_select_row', self.callback_row_selected)
         list_box.add(self.vaults_table.getbox())
         global_controls.add_from_controls(self.vaults_table.getcontrols(),'Vaults_TableContainer_')
 
@@ -467,7 +467,8 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail_VaultPendingJobs', self.vault_pending_jobs.id)
 
         # VaultDetail -> ArchivesTable: Table
-        self.archives_table = Table(headers=HEADERS_ARCHIVES, on_row_selected=self.callback_row_selected_archive)
+        self.archives_table = Table(headers=HEADERS_ARCHIVES)
+        self.archives_table.subscribe('on_select_row', self.callback_row_selected_archive)
         self.vault_box.add(self.archives_table.getbox())
         global_controls.add_from_controls(self.archives_table.getcontrols(),'VaultDetail_TableContainer_')
 
@@ -490,6 +491,7 @@ class beeglacier(toga.App):
         self.archive_selected_box = toga.Box(style=Pack(direction=COLUMN, flex=1, padding_top=15))
         self.vault_box.add(self.archive_selected_box)
         global_controls.add('Vaults_ArchiveBox', self.archive_selected_box.id)
+        self.archive_selected_box._impl.set_hidden(False)
 
         # VaultDetail -> VaultTitle: Label
         self.archive_title = toga.Label('Archive selected: -', style=Pack(font_size=16, padding_bottom=1))
@@ -577,9 +579,6 @@ class beeglacier(toga.App):
 
         # ---
         # create observable for storing list of vaults
-        self.obs_data_vaults = ObsData()
-        self.obs_data_vaults.bind_to(self.obs_data_table)
-
         self.obs_data_archives = ObsData()
         self.obs_data_archives.bind_to(self.obs_data_table_archives)
 
@@ -592,7 +591,7 @@ class beeglacier(toga.App):
         # get last retrieve of vaults from database 
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
-            self.obs_data_vaults.data = json.loads(vaults_db)
+            self.vaults_table.set_data(json.loads(vaults_db))
 
 
 def main():
