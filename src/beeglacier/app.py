@@ -36,6 +36,11 @@ HEADERS_ARCHIVES = [
     {'name': 'size', 'label': 'Size (MB)'},
 ]
 
+HEADERS_ON_PROGRESS = [
+    {'name': 'description', 'label': 'Task Description'},
+    {'name': 'progress', 'label': 'Progress'},
+]
+
 global_controls = Controls()
 
 class beeglacier(toga.App):
@@ -95,6 +100,7 @@ class beeglacier(toga.App):
         # In background task is necessary to do this
         db, glacier = self._connect_db_and_glacier()
 
+        onprogressid = self.progress_table.append({'description': 'Get Vaults', 'progress': 'on progress'})
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
                                    TEXT['BTN_REFRESH_VAULTS_LOADING'])
 
@@ -125,13 +131,10 @@ class beeglacier(toga.App):
         # refresh UI
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
                                    TEXT['BTN_REFRESH_VAULTS'])
-
-    def callback_row_selected_archive(self, table, row):
-        if row:
-            print (row.filename)
-            self.obs_selected_archive.data = row.filename
-
+    
     def bg_upload_file(self, vault, path):
+        """ Background task for uploading files
+        """
         db = DB(DB_PATH)
         account_id, access_key, secret_key, region_name = db.get_account()
 
@@ -159,6 +162,11 @@ class beeglacier(toga.App):
             self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
             # refresh
             self.bg_get_vaults_data()
+
+    def callback_row_selected_archive(self, table, row):
+        if row:
+            print (row.filename)
+            self.obs_selected_archive.data = row.filename
 
     def obs_data_table_archives(self, test):
         self.archives_table.data = self.obs_data_archives.data
@@ -373,7 +381,8 @@ class beeglacier(toga.App):
         # Actions triggered after selecting options
         option_1 = getattr(self, 'app_box', None)
         option_2 = getattr(self, 'vault_box', None)
-        option_3 = getattr(self, 'credentials_box', None)
+        option_3 = getattr(self, 'onprogress_box', None)
+        option_4 = getattr(self, 'credentials_box', None)
         if option == option_2:
             self.select_option_vault_details()
 
@@ -574,10 +583,21 @@ class beeglacier(toga.App):
         self.credentials_box = account_form.getbox()
         global_controls.add_from_controls(account_form.getcontrols(),'Credentials_')
 
+        # OnProgress: Box
+        self.onprogress_box = toga.Box(style=STYLES['OPTION_BOX'])
+        global_controls.add('OnProgress', self.onprogress_box.id)
+        
+        # OnProgress > OnProgressTable: Table
+        self.progress_table = Table(headers=HEADERS_ON_PROGRESS)
+        #self.progress_table.subscribe('on_select_row', self.callback_row_selected)
+        self.onprogress_box.add(self.progress_table.getbox())
+        global_controls.add_from_controls(self.progress_table.getcontrols(),'OnProgress_TableContainer_')
+
         # Main -> OptionContainer: OptionContainer
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
         container.add('Vaults', self.app_box)
         container.add('Vault Detail', self.vault_box)
+        container.add('On Progress', self.onprogress_box)
         container.add('Credentials', self.credentials_box)
         self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)

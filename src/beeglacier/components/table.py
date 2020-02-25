@@ -39,6 +39,14 @@ class Table(Base):
         self.getcontrols().add('Table', self._toga_table.id)
         self.basebox.add(self._toga_table)
 
+    def _filter_columns(self, row):
+        # filter headers to show
+        headers = self._get_header_names()
+        filtered_row = []
+        for name in headers:
+            filtered_row.append(row[name])
+        return filtered_row
+
     @property
     def selected_row(self):
         return self._selected_row
@@ -69,30 +77,68 @@ class Table(Base):
         self._toga_table.data = []
 
         self._data = value
-        headers = self._get_header_names()
         
         index = 0
         for row in self._data:
-            
-            # filter headers to show
-            filtered_row = []
-            for name in headers:
-                filtered_row.append(row[name])
-
-            # add row to table
-            row_added = self._toga_table.data.append(*filtered_row)
-            
-            # set ids
-            setattr(row_added, '___id', index)
-            row['___id'] = index
-
-            # add object row to self._data (row)
-            row['_row'] = row_added
+            self._append_wrapper(row, index)
             index += 1
 
         for callback in self._observers_data_change:
             callback(self._data)
     
+    def _append_wrapper(self, row, index):
+        """ append wrapper used by data property and append method
+        """
+        #filter columns
+        filtered_row = self._filter_columns(row)
+
+        # add row to table
+        row_added = self._toga_table.data.append(*filtered_row)
+        
+        # set ids
+        setattr(row_added, '___id', index)
+        row['___id'] = index
+
+        # add object row to self._data (row)
+        row['_row'] = row_added
+
+    def append(self, newrow):
+        
+        # get max index
+        index = 0
+        indexes = [ x['___id'] for x in self._data ]
+        if indexes:
+            index = max(indexes)
+
+        # create new row in _data
+        newrow['___id'] = index
+        self._data.append(newrow)
+
+        # add that new row to table
+        row_to_add = self._data[-1]
+        self._append_wrapper(row_to_add, index)
+
+        # call the observers
+        for callback in self._observers_data_change:
+            callback(self._data)
+    
+        return index
+
+    def update(self, index, *args, **kwargs):
+        #row_to_update = list(filter(lambda x: x['___id'] == index, self._data))
+        pass
+
+    def remove(self, index):
+        pass
+        '''
+        row_to_remove = list(filter(lambda x: x['___id'] == index, self._data))
+        import pdb;pdb.set_trace()
+
+        # call the observers
+        for callback in self._observers_data_change:
+            callback(self._data)
+        '''
+        
     def subscribe(self, event, callback):
         if event == 'on_select_row':
             self._observers_selected_row.append(callback)
