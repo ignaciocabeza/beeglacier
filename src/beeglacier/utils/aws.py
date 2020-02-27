@@ -112,7 +112,7 @@ class Glacier():
             archiveDescription=arc_desc,
             partSize=str(part_size)
         )
-        self.current_uploads[response['uploadId']] = {'status':'NOT_STARTED','total_parts': 0, 'uploading': 0}
+        self.current_uploads[response['uploadId']] = {'status':'NOT_STARTED','total_parts': 0, 'uploading': 0, 'done': 0}
         return response['uploadId']
 
     def upload(self, vault_name, file_name, arc_desc, part_size, num_threads, upload_id):
@@ -216,7 +216,7 @@ class Glacier():
                     list_of_checksums[part_num] = checksum
 
         self.current_uploads[upload_id]['status'] = 'UPLOADING'
-        self.current_uploads[upload_id]['total_parts'] = num_parts    
+        self.current_uploads[upload_id]['total_parts'] = num_parts
 
         print('Spawning threads...')
         with concurrent.futures.ThreadPoolExecutor(

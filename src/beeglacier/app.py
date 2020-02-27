@@ -10,6 +10,7 @@ import threading
 import ntpath
 import json
 import tempfile
+import time
 
 import toga
 from toga.style import Pack
@@ -62,8 +63,9 @@ class beeglacier(toga.App):
     def _connect_db_and_glacier(self):
         db = DB(DB_PATH)
         aid, akey, skey, reg = db.get_account()
-        glacier_instance = Glacier(aid, akey, skey, reg)
-        return db, glacier_instance
+        if not self.glacier_instance:
+            self.glacier_instance = Glacier(aid, akey, skey, reg)
+        return db, self.glacier_instance
 
     def _update_control_label(self, name, value):
         """ Given a name, update label text.
@@ -132,19 +134,39 @@ class beeglacier(toga.App):
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
                                    TEXT['BTN_REFRESH_VAULTS'])
     
-    def bg_upload_file(self, vault, path):
+    def bg_tasks_checker(self):
+        db, glacier = self._connect_db_and_glacier()
+        while True:
+            data = []
+            if glacier.current_uploads:
+                for key, value in glacier.current_uploads.items():
+                    progress = '{}/{}'.format(value['done'], value['total_parts'])
+                    description = key
+                    data.append({'description': description, 'progress': progress})
+            
+            self.progress_table.data = data
+            time.sleep(2)
+
+    def bg_upload_file(self, *args, **kwargs):
         """ Background task for uploading files
         """
+
+        if 'vaultname' not in kwargs or 'fullpath' not in kwargs:
+            return
+
+        vault = kwargs['vaultname']
+        path = kwargs['fullpath']
+
+        db, glacier = self._connect_db_and_glacier()
         db = DB(DB_PATH)
-        account_id, access_key, secret_key, region_name = db.get_account()
 
         filename = ntpath.basename(path)
-        part_size = 4
+        partsize = 4
 
-        upload_id = self.glacier_instance.create_multipart_upload(vault, filename, part_size)
-        db.create_upload(self.account_id, upload_id, path, vault)
+        upload_id = glacier.create_multipart_upload(vault, filename, partsize)
+        db.create_upload(glacier.account_id, upload_id, path, vault)
 
-        response = self.glacier_instance.upload(vault, path, filename, part_size, 4, upload_id)
+        response = glacier.upload(vault, path, filename, partsize, 4, upload_id)
         db.save_upload_response(upload_id, json.dumps(response))
 
     def bg_delete_vault(self, *args, **kwargs):
@@ -332,24 +354,20 @@ class beeglacier(toga.App):
         self._execute_bg_task(self.bg_get_vaults_data)
 
     def on_upload_file(self, button):
-        input_path = global_controls.get_control_by_name('Vaults_Upload_VaultPath')
-        full_path = input_path.value
-        vault_name = self.obs_selected_vault.data
 
-        
-        if full_path and vault_name:
-            x = threading.Thread(target=self.bg_upload_file, args=(vault_name,full_path))
-            threads = list()
-            threads.append(x)
-            x.start()
+        if not self.vaults_table.selected_row:
+            self.main_window.error_dialog('Error', 'Vault Not selected')
+            return None
+        vaultname = self.vaults_table.selected_row['vaultname']
 
-            #x = threading.Thread(target=self.bg_refresh_upload, args=())
-        else:
-            if not full_path:
-                error_msg = 'File not selected'
-            else:
-                error_msg = 'Vault not selected'
-            self.main_window.error_dialog("Error", error_msg)
+        inp = global_controls.get_control_by_name('Vaults_Upload_VaultPath')
+        fullpath = inp.value
+        if not fullpath:
+            self.main_window.error_dialog('Error', 'File not selected')
+            return None
+
+        if fullpath and vaultname:
+            self._execute_bg_task(self.bg_upload_file, vaultname=vaultname, fullpath=fullpath)
 
     def on_searchfile_btn(self, button):
         filepath = self.main_window.open_file_dialog("Select File to upload")
@@ -391,6 +409,9 @@ class beeglacier(toga.App):
             - Get Pending Jobs
             - Populate Vault Archive Table
         """
+        if not self.vaults_table.selected_row:
+            return None
+
         selected_vault_name = self.vaults_table.selected_row['vaultname']
 
         self.obs_data_archives.data = []
@@ -616,6 +637,8 @@ class beeglacier(toga.App):
 
         # Create all controls
         self.create_controls()
+
+        self._execute_bg_task(self.bg_tasks_checker)
 
         # Show Main Window
         self.main_window.content = self.main_box
