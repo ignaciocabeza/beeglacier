@@ -134,6 +134,7 @@ class beeglacier(toga.App):
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
                                    TEXT['BTN_REFRESH_VAULTS'])
     
+    '''
     def bg_tasks_checker(self):
         db, glacier = self._connect_db_and_glacier()
         while True:
@@ -147,6 +148,7 @@ class beeglacier(toga.App):
             self.progress_table.data = data
             self.progress_table.refresh()
             time.sleep(2)
+    '''
 
     def bg_upload_file(self, *args, **kwargs):
         """ Background task for uploading files
@@ -326,19 +328,6 @@ class beeglacier(toga.App):
         box.add(btn_create)
         self.create_vault_dialog.content = box
         self.create_vault_dialog.show()
-
-    def pre_init(self):
-        self.db = DB(DB_PATH)
-        self.account = self.db.get_account()
-        if not self.account:
-            return False
-        else:
-            self.account_id = self.account[0]
-            self.access_key = self.account[1]
-            self.secret_key = self.account[2]
-            self.region_name = self.account[3]
-            self.glacier_instance = Glacier(self.account_id, self.access_key,
-                                            self.secret_key, self.region_name)
    
     def callback_create_account(self,button):
         # called after pressed save button
@@ -623,6 +612,34 @@ class beeglacier(toga.App):
         self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)
 
+    def update_progress_uploads(self, arg2):
+        data = []
+        if self.glacier_instance.current_uploads:
+            for key, v in self.glacier_instance.current_uploads.items():
+                progress = f'{v["done"]}/{v["total_parts"]}'
+                description = f'Uploading: {v["description"]}'
+                data.append({'description': description, 'progress': progress})
+        self.progress_table.data = data
+        print('test')
+        
+    def pre_init(self):
+        self.db = DB(DB_PATH)
+        self.account = self.db.get_account()
+        if not self.account:
+            return False
+        else:
+            self.account_id = self.account[0]
+            self.access_key = self.account[1]
+            self.secret_key = self.account[2]
+            self.region_name = self.account[3]
+            self.glacier_instance = Glacier(self.account_id, self.access_key,
+                                            self.secret_key, self.region_name)
+
+        self.glacier_instance.subscribe('current_uploads_change', self.add_bg)
+
+    def add_bg(self):
+        self.add_background_task(self.update_progress_uploads)
+
     def startup(self): 
         # setup
         self.pre_init()
@@ -638,7 +655,7 @@ class beeglacier(toga.App):
         # Create all controls
         self.create_controls()
 
-        self._execute_bg_task(self.bg_tasks_checker)
+        #self._execute_bg_task(self.bg_tasks_checker)
 
         # Show Main Window
         self.main_window.content = self.main_box

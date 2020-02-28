@@ -33,7 +33,8 @@ class Glacier():
         }
     }
     """
-    current_uploads = {}
+    _current_uploads = {}
+    _current_uploads_observers = []
 
     def __init__(self, account_id, access_key_id, 
                  secret_access_key, region_name):
@@ -41,9 +42,6 @@ class Glacier():
         self.account_id = account_id
         self.secret_access_key = secret_access_key
         self.region_name = region_name
-
-        # maintain state of current uploads
-        self.current_uploads = {}
 
     def _get_resource(self):
         """ get session or create a new one if does not exists
@@ -140,7 +138,9 @@ class Glacier():
             'done': 0
         }
 
-        self.current_uploads[response['uploadId']] = new_upload_info
+        self.temp_current = self.current_uploads
+        self.temp_current[response['uploadId']] = new_upload_info
+        self.current_uploads = self.temp_current
         return response['uploadId']
 
     def upload(self, vault_name, file_name, arc_desc, part_size, num_threads, upload_id):
@@ -177,10 +177,10 @@ class Glacier():
                 archiveDescription=arc_desc,
                 body=file_to_upload)
 
-            self.current_uploads[upload_id]['status'] = 'FINISHED'
-            self.current_uploads[upload_id]['total_parts'] = 1
-            self.current_uploads[upload_id]['uploading'] = 0
-            self.current_uploads[upload_id]['done'] = 1 
+            self._current_uploads[upload_id]['status'] = 'FINISHED'
+            self._current_uploads[upload_id]['total_parts'] = 1
+            self._current_uploads[upload_id]['uploading'] = 0
+            self._current_uploads[upload_id]['done'] = 1 
             print('Uploaded.')
             print('Glacier tree hash: %s' % response['checksum'])
             print('Location: %s' % response['location'])
@@ -243,8 +243,8 @@ class Glacier():
                     part_num = byte_start // part_size
                     list_of_checksums[part_num] = checksum
 
-        self.current_uploads[upload_id]['status'] = 'UPLOADING'
-        self.current_uploads[upload_id]['total_parts'] = num_parts
+        self._current_uploads[upload_id]['status'] = 'UPLOADING'
+        self._current_uploads[upload_id]['total_parts'] = num_parts
 
         print('Spawning threads...')
         with concurrent.futures.ThreadPoolExecutor(
@@ -294,7 +294,7 @@ class Glacier():
         print('Location: %s' % response['location'])
         print('Archive ID: %s' % response['archiveId'])
         print('Done.')
-        self.current_uploads[upload_id]['status'] = 'FINISHED'
+        self._current_uploads[upload_id]['status'] = 'FINISHED'
         file_to_upload.close()
         return response
 
@@ -310,7 +310,7 @@ class Glacier():
         part_num = byte_pos // part_size
         percentage = part_num / num_parts
 
-        self.current_uploads[upload_id]['uploading'] += 1 
+        self._current_uploads[upload_id]['uploading'] += 1 
         print('Uploading part {0} of {1}... ({2:.2%})'.format(
             part_num + 1, num_parts, percentage))
 
@@ -334,8 +334,11 @@ class Glacier():
             print('Exiting.')
             sys.exit(1)
 
-        self.current_uploads[upload_id]['uploading'] -= 1
-        self.current_uploads[upload_id]['done'] += 1
+        self.temp_current = self.current_uploads
+        self.temp_current[upload_id]['uploading'] -= 1
+        self.temp_current[upload_id]['done'] += 1
+        self.current_uploads = self.temp_current
+        
         del part
         return checksum
 
@@ -362,3 +365,18 @@ class Glacier():
                     parent.append(tree[i])
             tree = parent
         return tree[0]
+
+    def subscribe(self, event, callback):
+        if event == 'current_uploads_change':
+            self._current_uploads_observers.append(callback)
+
+    @property
+    def current_uploads(self):
+        return self._current_uploads
+
+    @current_uploads.setter
+    def current_uploads(self, value):
+        self._current_uploads = value
+        for callback in self._current_uploads_observers:
+            #callback(self._current_uploads)
+            callback()
