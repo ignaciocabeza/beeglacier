@@ -85,6 +85,8 @@ class Table(Base):
 
         for callback in self._observers_data_change:
             callback(self._data)
+
+        self.refresh()
     
     def _append_wrapper(self, row, index):
         """ append wrapper used by data property and append method
@@ -138,7 +140,7 @@ class Table(Base):
         for callback in self._observers_data_change:
             callback(self._data)
         '''
-        
+
     def subscribe(self, event, callback):
         if event == 'on_select_row':
             self._observers_selected_row.append(callback)
@@ -158,3 +160,6 @@ class Table(Base):
             filter_row = list(filter(lambda x: x['___id'] == getattr(row, '___id'), self._data))
             if len(filter_row) > 0:
                 self.selected_row = filter_row[0]
+
+    def refresh(self):
+        self._toga_table.refresh()

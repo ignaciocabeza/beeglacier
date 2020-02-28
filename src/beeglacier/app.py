@@ -139,12 +139,13 @@ class beeglacier(toga.App):
         while True:
             data = []
             if glacier.current_uploads:
-                for key, value in glacier.current_uploads.items():
-                    progress = '{}/{}'.format(value['done'], value['total_parts'])
-                    description = key
+                for key, v in glacier.current_uploads.items():
+                    progress = f'{v["done"]}/{v["total_parts"]}'
+                    description = f'Uploading: {v["description"]}'
                     data.append({'description': description, 'progress': progress})
             
             self.progress_table.data = data
+            self.progress_table.refresh()
             time.sleep(2)
 
     def bg_upload_file(self, *args, **kwargs):
@@ -338,8 +339,7 @@ class beeglacier(toga.App):
             self.region_name = self.account[3]
             self.glacier_instance = Glacier(self.account_id, self.access_key,
                                             self.secret_key, self.region_name)
-
-            
+   
     def callback_create_account(self,button):
         # called after pressed save button
         self.account_id = self.account_form.get_field_value('account_id')
@@ -656,7 +656,6 @@ class beeglacier(toga.App):
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
             self.vaults_table.data = json.loads(vaults_db)
-
 
 def main():
     return beeglacier()

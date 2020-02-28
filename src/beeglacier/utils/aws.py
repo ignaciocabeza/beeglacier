@@ -12,24 +12,43 @@ import boto3
 MAX_ATTEMPTS = 10
 fileblock = threading.Lock()
 
-#list of prices.
-#https://a0.p.awsstatic.com/pricing/1.0/glacier/index.json?timestamp=1581568546394
+"""
+Info:
+    - list of prices.
+    - https://a0.p.awsstatic.com/pricing/1.0/glacier/index.json?timestamp=1581568546394
+"""
 
 class Glacier():
 
+    # 
+    """
+    Current Upload structure:
+    {
+        'IDUPLOAD': {
+            'description': 'test.zip', 
+            'uploading': 10, 
+            'status': 'UPLOADING', 
+            'total_parts':12, 
+            'done': 2
+        }
+    }
+    """
     current_uploads = {}
 
-    def __init__(self, account_id, access_key_id, secret_access_key, region_name):
+    def __init__(self, account_id, access_key_id, 
+                 secret_access_key, region_name):
         self.access_key_id = access_key_id
         self.account_id = account_id
         self.secret_access_key = secret_access_key
         self.region_name = region_name
 
         # maintain state of current uploads
-        #{'IDUPLOAD': {'total_parts':12, 'done_parts': 3}}
         self.current_uploads = {}
 
     def _get_resource(self):
+        """ get session or create a new one if does not exists
+            Returns a glacier resource.
+        """
 
         try:
             self.session = getattr(self,'session')
@@ -112,7 +131,16 @@ class Glacier():
             archiveDescription=arc_desc,
             partSize=str(part_size)
         )
-        self.current_uploads[response['uploadId']] = {'status':'NOT_STARTED','total_parts': 0, 'uploading': 0, 'done': 0}
+
+        new_upload_info = {
+            'description': arc_desc,
+            'status':'NOT_STARTED',
+            'total_parts': 0, 
+            'uploading': 0, 
+            'done': 0
+        }
+
+        self.current_uploads[response['uploadId']] = new_upload_info
         return response['uploadId']
 
     def upload(self, vault_name, file_name, arc_desc, part_size, num_threads, upload_id):
