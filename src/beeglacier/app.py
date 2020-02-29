@@ -269,6 +269,9 @@ class beeglacier(toga.App):
             response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, archive_id)
             self.db.create_job(self.obs_selected_vault.data, response.id, 'archive', archive_id=archive_id)
 
+    def on_btn_delete_archive(self, button):
+        print ("Not implemented")
+
     def on_delete_vault(self, button):
 
         if not self.vaults_table.selected_row:
@@ -546,10 +549,15 @@ class beeglacier(toga.App):
         self.archive_download_box.add(self.btn_request_download_job)
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
-        # VaultDetail -> StartDownloadArchiveJobButton: Button
+        # VaultDetail_DownloadArchive: Button
         self.btn_download_archive = toga.Button('Download', on_press=self.on_btn_download_archive)
         self.archive_download_box.add(self.btn_download_archive)
         global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
+
+        # VaultDetail_DeleteArchive: Button
+        self.btn_delete_archive = toga.Button('Delete', on_press=self.on_btn_delete_archive)
+        self.archive_download_box.add(self.btn_delete_archive)
+        global_controls.add('VaultDetail_DeleteArchive', self.btn_delete_archive.id)
 
         # credentials
         fields = [
