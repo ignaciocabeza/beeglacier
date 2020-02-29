@@ -39,12 +39,14 @@ briefcase dev
 
 ## To-do
 
+- [ ] [Start Inventory Job] Make async
+- [ ] [Check Inventory Job] Make async
 - [ ] [Upload Archive] Stop, Cancel and Resume Uploads
 - [ ] [Delete Archive] Make delete archive feature
 - [ ] [Download Archive] Async Download
 - [ ] [Download Archive] Progress Bar when donwload
 - [ ] [Download Archive] Select Destination folder when download
-- [ ] [Download Archive] Avoid new download job if is already one job with status pending
+- [ ] [Download Archive] Avoid to create a new download job if is already one job with status pending
 - [ ] [Download Archive] Update state when download job is expired
 - [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
 - [ ] [Download Archive] Select type of download when you start a archive donwload job

@@ -177,10 +177,14 @@ class Glacier():
                 archiveDescription=arc_desc,
                 body=file_to_upload)
 
-            self._current_uploads[upload_id]['status'] = 'FINISHED'
-            self._current_uploads[upload_id]['total_parts'] = 1
-            self._current_uploads[upload_id]['uploading'] = 0
-            self._current_uploads[upload_id]['done'] = 1 
+            to_update = {
+                'status': 'FINISHED', 
+                'total_parts': 1, 
+                'uploading': 0,
+                'done': 1
+            }
+            self._update_current_upload(upload_id, to_update)
+
             print('Uploaded.')
             print('Glacier tree hash: %s' % response['checksum'])
             print('Location: %s' % response['location'])
@@ -243,8 +247,8 @@ class Glacier():
                     part_num = byte_start // part_size
                     list_of_checksums[part_num] = checksum
 
-        self._current_uploads[upload_id]['status'] = 'UPLOADING'
-        self._current_uploads[upload_id]['total_parts'] = num_parts
+        to_update = {'status': 'UPLOADING', 'total_parts': num_parts}
+        self._update_current_upload(upload_id, to_update)
 
         print('Spawning threads...')
         with concurrent.futures.ThreadPoolExecutor(
@@ -294,7 +298,7 @@ class Glacier():
         print('Location: %s' % response['location'])
         print('Archive ID: %s' % response['archiveId'])
         print('Done.')
-        self._current_uploads[upload_id]['status'] = 'FINISHED'
+        self._update_current_upload(upload_id, {'status': 'FINISHED'})
         file_to_upload.close()
         return response
 
@@ -310,7 +314,9 @@ class Glacier():
         part_num = byte_pos // part_size
         percentage = part_num / num_parts
 
-        self._current_uploads[upload_id]['uploading'] += 1 
+        uploading = self.current_uploads[upload_id]['uploading'] + 1
+        self._update_current_upload(upload_id, {'uploading': uploading})
+
         print('Uploading part {0} of {1}... ({2:.2%})'.format(
             part_num + 1, num_parts, percentage))
 
@@ -378,5 +384,15 @@ class Glacier():
     def current_uploads(self, value):
         self._current_uploads = value
         for callback in self._current_uploads_observers:
-            #callback(self._current_uploads)
             callback()
+
+    def _update_current_upload(self, up_id, to_update):
+        """ update some keys of one upload 
+            - to_update is a dict
+        """
+        for key, value in to_update.items():
+            self._current_uploads[up_id][key] = value
+
+        for callback in self._current_uploads_observers:
+            callback()
+
