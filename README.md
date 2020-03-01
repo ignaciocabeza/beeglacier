@@ -35,14 +35,15 @@ briefcase dev
 - Upload File to Vault
 - List Archives of a Vault
 - Start an inventory job to request the list of archives of a Vault
-- Download an archive (in progress)
+- Download an archive (wip)
+- Delete Archive (wip)
 
 ## To-do
 
 - [ ] [Start Inventory Job] Make async
 - [ ] [Check Inventory Job] Make async
 - [ ] [Upload Archive] Stop, Cancel and Resume Uploads
-- [ ] [Delete Archive] Make delete archive feature
+- [ ] [Delete Archive] Save Delete response in Database
 - [ ] [Download Archive] Async Download
 - [ ] [Download Archive] Progress Bar when donwload
 - [ ] [Download Archive] Select Destination folder when download
@@ -50,7 +51,8 @@ briefcase dev
 - [ ] [Download Archive] Update state when download job is expired
 - [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
-- [ ] [Sytem Wide] Show how much cost($) each action (Download, Upload, etc)
+- [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
+- [ ] [System Wide] Use ORM for Sqlite3
 
 ## Beeware
 

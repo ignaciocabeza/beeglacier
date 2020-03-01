@@ -57,7 +57,6 @@ class beeglacier(toga.App):
 
     # observables datas
     obs_data_archives = None
-    obs_selected_vault = None
 
     def _connect_db_and_glacier(self):
         db = DB(DB_PATH)
@@ -171,6 +170,17 @@ class beeglacier(toga.App):
             # refresh
             self.bg_get_vaults_data()
 
+    def bg_delete_archive(self, *args, **kwargs):
+        if 'vaultname' not in kwargs or 'archiveid' not in kwargs: 
+            return 
+        
+        vaultname = kwargs['vaultname']
+        archiveid = kwargs['archiveid']
+
+        #delete file
+        response = self.glacier_instance.delete_archive(vaultname, archiveid)
+        print (response)
+
     def callback_row_selected_archive(self, archive):
         if not archive:
             return
@@ -198,12 +208,15 @@ class beeglacier(toga.App):
         file_path_temp = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data + '.downloading'
         file_path_final = file_path = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data
 
+        vault = self.vaults_table.selected_row
+        vaultname = vault['vaultname']
+
         if archive:
             jobs = self.db.get_archive_jobs(archive['archiveid'])
             if jobs:
                 job_id = jobs[0][0]
                 
-                job_description = self.glacier_instance.describe_job(self.obs_selected_vault.data, job_id)
+                job_description = self.glacier_instance.describe_job(vaultname, job_id)
                 print (job_description)
                 if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
                     archive_checksum = job_description['ArchiveSHA256TreeHash']
@@ -229,7 +242,7 @@ class beeglacier(toga.App):
                         
                         param_range = 'bytes=%s-%s' %(str(start_range),str(end_range))
                         #print(param_range)
-                        job_result = self.glacier_instance.get_job_output(self.obs_selected_vault.data, job_id, range=param_range)
+                        job_result = self.glacier_instance.get_job_output(vaultname, job_id, range=param_range)
                         #print (job_result)
                         if job_result['status'] == 206:
                             body = job_result['body'].read()
@@ -264,13 +277,13 @@ class beeglacier(toga.App):
         archive = self.get_archive_from_data(self.obs_selected_archive.data)
         if archive:
             archive_id = archive['archiveid']
+
+            vault = self.vaults_table.selected_row
+            vaultname = vault['vaultname']
             
             # TO-DO: Create confirm dialog
-            response = self.glacier_instance.initiate_archive_retrieval(self.obs_selected_vault.data, archive_id)
-            self.db.create_job(self.obs_selected_vault.data, response.id, 'archive', archive_id=archive_id)
-
-    def on_btn_delete_archive(self, button):
-        print ("Not implemented")
+            response = self.glacier_instance.initiate_archive_retrieval(vaultname, archive_id)
+            self.db.create_job(vaultname, response.id, 'archive', archive_id=archive_id)
 
     def on_delete_vault(self, button):
 
@@ -287,11 +300,31 @@ class beeglacier(toga.App):
             return None
         
         # confirmation dialog
-        msg = TEXT['DIALOG_DELETE_VAULT'] % (vaultname)
+        msg = TEXT['DIALOG_DELETE'] % (vaultname)
         response = self.main_window.confirm_dialog("Delete Vault", msg)
         if response:
             # execute task
             self._execute_bg_task(self.bg_delete_vault, vaultname=vaultname)
+
+    def on_delete_archive(self, button):
+
+        if not self.archives_table.selected_row:
+            self.main_window.error_dialog("Error", 
+                                          TEXT['ERROR_NOT_SELECTED_ARCHIVE'])
+            return None
+
+        vaultname = self.vaults_table.selected_row['vaultname']
+        archiveid = self.archives_table.selected_row['archiveid']
+        description = self.archives_table.selected_row['archivedescription']
+
+        # confirmation dialog
+        msg = TEXT['DIALOG_DELETE'] % (description)
+        response = self.main_window.confirm_dialog("Delete Archive", msg)
+        if response:
+            # execute task
+            self._execute_bg_task(self.bg_delete_archive, 
+                                  vaultname=vaultname,
+                                  archiveid=archiveid)
 
     def on_create_vault_dialog(self, button):
         if self.input_vault_name.value:
@@ -555,7 +588,7 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
 
         # VaultDetail_DeleteArchive: Button
-        self.btn_delete_archive = toga.Button('Delete', on_press=self.on_btn_delete_archive)
+        self.btn_delete_archive = toga.Button('Delete', on_press=self.on_delete_archive)
         self.archive_download_box.add(self.btn_delete_archive)
         global_controls.add('VaultDetail_DeleteArchive', self.btn_delete_archive.id)
 

@@ -8,8 +8,9 @@ TEXT = {
     'LABEL_SELECTED_VAULT': 'Selected: %s',
     'LABEL_UPLOAD_VAULT': 'Upload to: %s',
     'LABEL_SELECTED_ARCHIVE': 'Selected Archive: %s',
-    'DIALOG_DELETE_VAULT': "Do you want to delete '%s' ",
+    'DIALOG_DELETE': "Do you want to delete '%s' ",
     'ERROR_DELETE_VAULT_FILES': 'Cannot delete a vault with archives inside',
     'ERROR_NOT_SELECTED_VAULT': 'Vault not selected',
+    'ERROR_NOT_SELECTED_ARCHIVE': 'Archive not selected',
 }
 
