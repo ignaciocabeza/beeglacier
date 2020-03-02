@@ -43,6 +43,15 @@ class DB:
             create_sql = "CREATE TABLE jobs (id, archiveid, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response);"
             c.execute(create_sql)
             self.conn.commit()
+        
+        #deleted archives table
+        check_sql = "SELECT name FROM sqlite_master WHERE type='table' AND name='deleted_archives';"
+        c = self.conn.cursor()
+        c.execute(check_sql)
+        if not c.fetchone():
+            create_sql = "CREATE TABLE deleted_archives (vaultname, archiveid, response, deleted_at INTEGER);"
+            c.execute(create_sql)
+            self.conn.commit()
 
     def get_account(self):
         select_sql = "SELECT * FROM accounts"
@@ -139,3 +148,10 @@ class DB:
         c.execute(select_sql)
         vaults = c.fetchone()
         return vaults[0]
+
+    def insert_deleted_archive(self, vaultname, archiveid, response):
+        sql = "INSERT INTO deleted_archives (vaultname, archiveid, response, deleted_at) " + \
+              "VALUES ('%s','%s', '%s', CAST(strftime('%%s','now') as INTEGER));" % (vaultname, archiveid, response)
+        c = self.conn.cursor()
+        c.execute(sql)
+        self.conn.commit()

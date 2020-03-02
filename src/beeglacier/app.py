@@ -174,12 +174,13 @@ class beeglacier(toga.App):
         if 'vaultname' not in kwargs or 'archiveid' not in kwargs: 
             return 
         
+        db = DB(DB_PATH)
         vaultname = kwargs['vaultname']
         archiveid = kwargs['archiveid']
 
         #delete file
         response = self.glacier_instance.delete_archive(vaultname, archiveid)
-        print (response)
+        db.insert_deleted_archive(vaultname, archiveid, json.dumps(response))
 
     def callback_row_selected_archive(self, archive):
         if not archive:

@@ -43,7 +43,7 @@ briefcase dev
 - [ ] [Start Inventory Job] Make async
 - [ ] [Check Inventory Job] Make async
 - [ ] [Upload Archive] Stop, Cancel and Resume Uploads
-- [ ] [Delete Archive] Save Delete response in Database
+- [ ] [Delete Archive] Add Delete information to archives data table
 - [ ] [Download Archive] Async Download
 - [ ] [Download Archive] Progress Bar when donwload
 - [ ] [Download Archive] Select Destination folder when download
