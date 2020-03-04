@@ -106,7 +106,13 @@ class Glacier():
             return self._get_client().get_job_output(vaultName=vault_name, jobId=job_id)
         
     def describe_job(self, vault_name, job_id):
-        return self._get_client().describe_job(vaultName=vault_name, jobId=job_id)
+        client = self._get_client()
+        try:
+            return client.describe_job(vaultName=vault_name, jobId=job_id)
+        except client.exceptions.ResourceNotFoundException:
+            # create a fake response of expired
+            jd = {'Completed': True, 'StatusCode': 'ResourceNotFound'}
+            return jd
 
     def list_jobs(self, vault_name):
         return self._get_client().list_jobs(vaultName=vault_name)

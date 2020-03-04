@@ -40,7 +40,7 @@ class DB:
         c = self.conn.cursor()
         c.execute(check_sql)
         if not c.fetchone():
-            create_sql = "CREATE TABLE jobs (id, archiveid, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response);"
+            create_sql = "CREATE TABLE jobs (id, archiveid, job_id, job_type, created_at INTEGER, updated_at INTEGER, done INTEGER, response, error INTEGER);"
             c.execute(create_sql)
             self.conn.commit()
         
@@ -91,8 +91,8 @@ class DB:
         self.conn.commit() 
 
     def create_job(self, id, job_id, job_type, archive_id=''):
-        sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done, archiveid) " + \
-              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0, '%s');" % (id, job_id, job_type, archive_id)
+        sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done, error, archiveid) " + \
+              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0, 0, '%s');" % (id, job_id, job_type, archive_id)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 
@@ -102,10 +102,15 @@ class DB:
         order = 'created_at'
         if status == 'all':
             done = ' '
-        if status == 'finished':
-            done = ' AND done=1 '
+        elif status == 'pending':
+            done = ' AND done=0 '
+        elif status == 'finished':
+            done = ' AND done=1 AND error=0'
             order = 'updated_at'
-            
+        elif status == 'failed':
+            done = ' AND done=1 AND error=1'
+            order = 'updated_at'
+        
         select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE id='%s' %s ORDER BY %s DESC;" % (vault_name, done, order)
         c = self.conn.cursor()
         c.execute(select_sql)
@@ -127,10 +132,10 @@ class DB:
         jobs = c.fetchall()
         return jobs
 
-    def update_job(self, job_id, response, status):
-        sql = "UPDATE jobs SET response='%s', done=%s, updated_at=CAST(strftime('%%s','now') as INTEGER) " + \
+    def update_job(self, job_id, response, status, error=0):
+        sql = "UPDATE jobs SET response='%s', done=%s, error=%s updated_at=CAST(strftime('%%s','now') as INTEGER) " + \
               "WHERE job_id = '%s';"
-        sql = sql % (json.dumps(response), str(status), job_id )
+        sql = sql % (json.dumps(response), str(status), error, job_id)
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 

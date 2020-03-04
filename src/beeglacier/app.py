@@ -397,15 +397,26 @@ class beeglacier(toga.App):
         jobs = self.db.get_inventory_jobs(vaultname)
         for job in jobs:
             job_id = job[0]
-            job_description = self.glacier_instance.describe_job(vaultname, job_id)
-            if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
-                job_result = self.glacier_instance.get_job_output(vaultname, job_id)
-                if job_result['status'] == 200:
-                    job_dict = json.loads(job_result['body'].read().decode())
+            job_desc = self.glacier_instance.describe_job(vaultname, job_id)
+
+            if not job_desc:
+                # not controlled situation
+                raise Exception('Something is wrong')
+
+            if not job_desc['Completed']:
+                self.main_window.info_dialog("Info", f"Job {job_id} is not ready to download")
+
+            if job_desc['StatusCode'] == 'Succeeded':
+                # donwload job output
+                r = self.glacier_instance.get_job_output(vaultname, job_id)
+                if r['status'] == 200:
+                    job_dict = json.loads(r['body'].read().decode())
                     self.db.update_job(job_id, job_dict ,1)
-            else:
-                self.main_window.info_dialog("Info", "Job is not ready to download")
-        
+            elif job_desc['StatusCode'] == 'ResourceNotFound':
+                # job probably is expired (expires after 24 h I think)
+                # Update database with Expired data 
+                self.db.update_job(job_id, job_desc ,1, 1)
+
         self.select_option_vault_details()
 
     def on_select_option(self, interface, option):
