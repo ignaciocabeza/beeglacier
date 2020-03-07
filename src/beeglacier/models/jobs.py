@@ -1,17 +1,21 @@
 from peewee import *
-import ..settings 
 
-db = SqliteDatabase(settings.DB_PATH)
+from ..settings import (
+    DB_PATH, 
+    SQL_TIMESTAMP
+) 
+
+db = SqliteDatabase(DB_PATH)
 
 class Job(Model):
     id = CharField()
-    archiveid = CharField()
+    archiveid = TextField()
     job_type = CharField()
-    created_at = IntegerField()
-    done = IntegerField()
+    created_at = TimestampField(default=SQL_TIMESTAMP)
+    done = BooleanField()
     response = TextField()
-    error = IntegerField()
+    error = BooleanField()
 
     class Meta:
-        database = db # This model uses the "people.db" database.
+        database = db
         table_name = 'jobs'

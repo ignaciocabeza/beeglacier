@@ -22,6 +22,7 @@ from .utils import ObsData, Controls
 from .utils.aws import Glacier
 from .utils.strings import TEXT
 from .utils.styles import STYLES
+from .models.jobs import Job
 
 DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 HEADERS = [
