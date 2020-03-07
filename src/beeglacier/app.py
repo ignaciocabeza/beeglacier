@@ -39,7 +39,22 @@ HEADERS_ARCHIVES = [
 
 HEADERS_ON_PROGRESS = [
     {'name': 'description', 'label': 'Task Description'},
-    {'name': 'progress', 'label': 'Progress'},
+    {'name': 'progress', 'label': 'Progress'}
+]
+
+HEADERS_DOWNLOADS_JOBS = [
+    {'name': 'description', 'label': 'Job Description'},
+    #{'name': 'progress', 'label': 'Progress'},
+]
+
+HEADERS_DOWNLOADS_CURRENT = [
+    {'name': 'description', 'label': 'Download Description'},
+    {'name': 'progress', 'label': 'Progress'}
+]
+
+HEADERS_JOBS = [
+    {'name': 'description', 'label': 'Job Description'},
+    {'name': 'status', 'label': 'Status'}
 ]
 
 global_controls = Controls()
@@ -87,6 +102,9 @@ class beeglacier(toga.App):
     def callback_row_selected(self, row):
         """ Callback when vault row is selected
         """
+        if not row:
+            return
+
         # Update Labels
         selected_vault_text = TEXT['LABEL_SELECTED_VAULT'] % (row['vaultname'])
         self._update_control_label('VaultDetail_VaultTitle', selected_vault_text)
@@ -94,6 +112,8 @@ class beeglacier(toga.App):
         self._update_control_label('Vaults_Upload_VaultName', upload_vault_text)
         delete_vault_text = TEXT['BTN_DELETE_VAULT'] % (row['vaultname'])
         self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
+        delete_btn = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
+        delete_btn.enabled = True
 
     def bg_get_vaults_data(self):
         # get account info and create glacier instance
@@ -181,6 +201,14 @@ class beeglacier(toga.App):
         #delete file
         response = self.glacier_instance.delete_archive(vaultname, archiveid)
         db.insert_deleted_archive(vaultname, archiveid, json.dumps(response))
+
+    def bg_start_inv_job(self, vaultname):
+        """ Start an inventory job and save response to db
+        """
+        db = DB(DB_PATH)
+        res = self.glacier_instance.initiate_inventory_retrieval(vaultname)
+        db.create_job(vaultname, res.id, 'inventory')
+        self.refresh_option_vault_details()
 
     def callback_row_selected_archive(self, archive):
         if not archive:
@@ -379,14 +407,12 @@ class beeglacier(toga.App):
         if filepath:
             input_filepath.value = filepath
 
-    def on_btn_get_inventory(self, button):
+    def on_btn_start_inv_job(self, button):
         vault_sel = self.vaults_table.selected_row
         if not vault_sel:
             return 
         vaultname = vault_sel['vaultname']
-
-        response = self.glacier_instance.initiate_inventory_retrieval(vaultname)
-        self.db.create_job(vaultname, response.id, 'inventory')
+        self._execute_bg_task(self.bg_start_inv_job, vaultname)
 
     def on_btn_check_jobs(self, button):
         vault_sel = self.vaults_table.selected_row
@@ -417,35 +443,40 @@ class beeglacier(toga.App):
                 # Update database with Expired data 
                 self.db.update_job(job_id, job_desc ,1, 1)
 
-        self.select_option_vault_details()
+        self.refresh_option_vault_details()
 
     def on_select_option(self, interface, option):
         # Hack for rewriting UI and autoresizing controls
         option.refresh()
 
         # Actions triggered after selecting options
-        option_1 = getattr(self, 'app_box', None)
-        option_2 = getattr(self, 'vault_box', None)
-        option_3 = getattr(self, 'onprogress_box', None)
-        option_4 = getattr(self, 'credentials_box', None)
+        option_vaults = getattr(self, 'app_box', None)
+        option_details = getattr(self, 'vault_box', None)
+        option_uploads = getattr(self, 'onprogress_box', None)
+        option_downloads = getattr(self, 'downloads_box', None)
+        option_jobs = getattr(self, 'jobs_box', None)
+        option_settings = getattr(self, 'credentials_box', None)
         if option == option_2:
-            self.select_option_vault_details()
+            self.refresh_option_vault_details()
 
-    def select_option_vault_details(self):
+    def refresh_option_vault_details(self):
         """ Actions after selecting Vault Detail Option
             - Get Pending Jobs
             - Populate Vault Archive Table
         """
+        db = DB(DB_PATH)
         if not self.vaults_table.selected_row:
             return None
 
         selected_vault_name = self.vaults_table.selected_row['vaultname']
 
         self.obs_data_archives.data = []
-        jobs = self.db.get_inventory_jobs(selected_vault_name)
-        self.vault_pending_jobs.text = '%s %s' % (TEXT['PENDING_INVENTORY_JOBS'],str(len(jobs)))
+        jobs = db.get_inventory_jobs(selected_vault_name)
 
-        done_jobs = self.db.get_inventory_jobs(selected_vault_name, status='finished')
+        text_pend_jobs = f'{TEXT["PENDING_INVENTORY_JOBS"]} {len(jobs)}'
+        self.vault_pending_jobs.text = text_pend_jobs
+
+        done_jobs = db.get_inventory_jobs(selected_vault_name, status='finished')
         if len(done_jobs):
             last_job_done = json.loads(done_jobs[0][1])
             list_archives = last_job_done['ArchiveList']
@@ -559,9 +590,11 @@ class beeglacier(toga.App):
         global_controls.add('Vaults_BottomNavVault', self.bottom_nav_vault.id)
 
         # VaultDetail -> StartInventoryJobButton: Button
-        self.btn_get_inventory = toga.Button('Start Inventory Retrieval Job', on_press=self.on_btn_get_inventory)
-        self.bottom_nav_vault.add(self.btn_get_inventory)
-        global_controls.add('VaultDetail_StartInventoryJobButton', self.btn_get_inventory.id)
+        btn_start_inv_job = toga.Button(TEXT['BTN_START_INV_JOB'], 
+                                        on_press=self.on_btn_start_inv_job)
+        self.bottom_nav_vault.add(btn_start_inv_job)
+        global_controls.add('VaultDetail_StartInventoryJobButton', 
+                            btn_start_inv_job.id)
 
         # VaultDetail -> CheckJobsButton: Button
         self.btn_check_jobs = toga.Button('Check Jobs', on_press=self.on_btn_check_jobs)
@@ -646,11 +679,32 @@ class beeglacier(toga.App):
         self.onprogress_box.add(self.progress_table.getbox())
         global_controls.add_from_controls(self.progress_table.getcontrols(),'OnProgress_TableContainer_')
 
+        # DownloadBox: Box (Inside Option Download)
+        self.downloads_box = toga.Box(style=STYLES['OPTION_BOX'])
+        global_controls.add('DownloadBox', self.downloads_box.id)
+
+        # DownloadBox > TableJobs
+        self.downloadjob_table = Table(headers=HEADERS_DOWNLOADS_JOBS)
+        self.downloads_box.add(self.downloadjob_table.getbox())
+        global_controls.add_from_controls(self.downloadjob_table.getcontrols(),'DownloadBox_TableJobs_')
+
+        # DownloadBox > TableCurrent
+        self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT)
+        self.downloads_box.add(self.current_downloads_table.getbox())
+        global_controls.add_from_controls(self.current_downloads_table.getcontrols(),'DownloadBox_TableCurrent_')
+
+        # JobsBox: Box (Inside Option Download)
+        jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
+        global_controls.add('JobsBox', self.jobs_box.id)
+
         # Main -> OptionContainer: OptionContainer
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
         container.add('Vaults', self.app_box)
         container.add('Vault Detail', self.vault_box)
+        container.add('Jobs', jobs_box)
         container.add('Uploads', self.onprogress_box)
+        container.add('Downloads', self.downloads_box)
+        
         container.add('Credentials', self.credentials_box)
         self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)

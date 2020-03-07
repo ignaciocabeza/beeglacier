@@ -33,9 +33,10 @@ class Table(Base):
         # create Toga Table
         table_style = Pack(height=300,direction=COLUMN)
         self._toga_table =  toga.Table(self._get_header_labels(), 
-                                      data=[], 
-                                      style=table_style, 
-                                      on_select=self._on_row_selected)
+                                       data=[], 
+                                       style=table_style, 
+                                       on_select=self._on_row_selected,
+                                       accessors=self._get_header_names())
         self.getcontrols().add('Table', self._toga_table.id)
         self.basebox.add(self._toga_table)
 

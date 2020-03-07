@@ -40,7 +40,7 @@ briefcase dev
 
 ## To-do
 
-- [ ] [Start Inventory Job] Make async
+- [x] [Start Inventory Job] Make async
 - [ ] [Check Inventory Job] Make async
 - [ ] [Upload Archive] Stop, Cancel and Resume Uploads
 - [ ] [Delete Archive] Add Delete information to archives data table

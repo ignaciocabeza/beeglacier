@@ -5,6 +5,7 @@ TEXT = {
     'BTN_REFRESH_VAULTS_LOADING': 'Fetching Vaults from AWS...',
     'BTN_DELETE_VAULT': 'Delete %s',
     'BTN_DELETE_VAULT_LOADING': 'Deleting %s',
+    'BTN_START_INV_JOB': 'Start Inventory Retrieval Job',
     'LABEL_SELECTED_VAULT': 'Selected: %s',
     'LABEL_UPLOAD_VAULT': 'Upload to: %s',
     'LABEL_SELECTED_ARCHIVE': 'Selected Archive: %s',
