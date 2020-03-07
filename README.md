@@ -53,6 +53,7 @@ briefcase dev
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
 - [ ] [System Wide] Use ORM for Sqlite3
+- [ ] [System Wide] Flake8
 
 ## Beeware
 

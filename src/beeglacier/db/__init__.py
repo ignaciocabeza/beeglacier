@@ -155,8 +155,11 @@ class DB:
         return vaults[0]
 
     def insert_deleted_archive(self, vaultname, archiveid, response):
-        sql = "INSERT INTO deleted_archives (vaultname, archiveid, response, deleted_at) " + \
-              "VALUES ('%s','%s', '%s', CAST(strftime('%%s','now') as INTEGER));" % (vaultname, archiveid, response)
-        c = self.conn.cursor()
-        c.execute(sql)
+        sql = f"INSERT INTO deleted_archives " \
+              f"(vaultname, archiveid, response, deleted_at) " \
+              f"VALUES ('{vaultname}', '{archiveid}', '{response}', " \
+              f"CAST(strftime('%s','now') as INTEGER));"
+
+        cursor = self.conn.cursor()
+        cursor.execute(sql)
         self.conn.commit()

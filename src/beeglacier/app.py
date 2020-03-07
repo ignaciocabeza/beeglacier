@@ -1,8 +1,8 @@
 """
 Amazon Glacier Backups
+----------------------
+Icons made by Freepik" https://www.flaticon.com/authors/freepik
 """
-
-#Icons made by <a href="https://www.flaticon.com/authors/freepik" title="Freepik">Freepik</a> from <a href="https://www.flaticon.com/" title="Flaticon"> www.flaticon.com</a>
 
 import os
 from pathlib import Path
@@ -10,12 +10,10 @@ import threading
 import ntpath
 import json
 import tempfile
-import time
 
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-import concurrent.futures
 
 from .db import DB
 from .components.form import Form
@@ -44,7 +42,6 @@ HEADERS_ON_PROGRESS = [
 
 HEADERS_DOWNLOADS_JOBS = [
     {'name': 'description', 'label': 'Job Description'},
-    #{'name': 'progress', 'label': 'Progress'},
 ]
 
 HEADERS_DOWNLOADS_CURRENT = [
@@ -58,6 +55,7 @@ HEADERS_JOBS = [
 ]
 
 global_controls = Controls()
+
 
 class beeglacier(toga.App):
 
@@ -88,7 +86,7 @@ class beeglacier(toga.App):
             control.text = value
         if type(control) == toga.Button:
             control.label = value
-        
+
         # forcing resizing 
         control.refresh()
 
@@ -694,18 +692,18 @@ class beeglacier(toga.App):
         global_controls.add_from_controls(self.current_downloads_table.getcontrols(),'DownloadBox_TableCurrent_')
 
         # JobsBox: Box (Inside Option Download)
-        jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
+        self.jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
         global_controls.add('JobsBox', self.jobs_box.id)
 
         # Main -> OptionContainer: OptionContainer
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
         container.add('Vaults', self.app_box)
         container.add('Vault Detail', self.vault_box)
-        container.add('Jobs', jobs_box)
+        container.add('Jobs', self.jobs_box)
         container.add('Uploads', self.onprogress_box)
         container.add('Downloads', self.downloads_box)
-        
         container.add('Credentials', self.credentials_box)
+        
         self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)
 
@@ -774,6 +772,8 @@ class beeglacier(toga.App):
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
             self.vaults_table.data = json.loads(vaults_db)
+
+        import pdb;pdb.set_trace()
 
 def main():
     return beeglacier()
