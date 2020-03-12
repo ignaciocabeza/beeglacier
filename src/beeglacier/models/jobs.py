@@ -1,11 +1,16 @@
-from peewee import *
+from peewee import (
+    Model,
+    CharField,
+    TextField,
+    TimestampField,
+    BooleanField
+)
 
+from . import db
 from ..settings import (
-    DB_PATH, 
     SQL_TIMESTAMP
-) 
+)
 
-db = SqliteDatabase(DB_PATH)
 
 class Job(Model):
     id = CharField()

@@ -27,6 +27,7 @@ class Form(Base):
                 {'name': 'account_id', 'label': 'Account ID:', validate: ['notnull'] },
                 {'name': 'access_key', 'label': 'Access Key:' },
             ]
+            initial = {'account_id': '213123'}
             confirm = {'label': 'Save credentials', 'callback': function }
             form = Form(fields=fields, confirm=confirm)
         """
@@ -50,7 +51,6 @@ class Form(Base):
                 # create controls
                 label_control = toga.Label(label, style=field_style)
                 input_control = toga.TextInput(placeholder='',style=field_style)
-                input_control.value = value
                 self.getcontrols().add('FormContainer_Label' + name.capitalize() + '', label_control.id)
                 self.getcontrols().add('FormContainer_Input' + name.capitalize() + '', input_control.id)
 
@@ -69,9 +69,16 @@ class Form(Base):
             self.getcontrols().add('FormContainer_ConfirmButton', self.confirm_btn.id)
             self.basebox.add(self.confirm_btn)
 
-        # Todo: add cancel button
+        if 'initial' in kwargs:
+            self.set_values(kwargs['initial'])
 
+        # Todo: add cancel button
         self.basebox.add(self.label_error)
+
+    def set_values(self, values):
+        for name, field in self.fields.items():
+            if name in values:
+                field['input'].value = values[name]
 
     def _write_error(self, error_msg):
         self.label_error.text = error_msg

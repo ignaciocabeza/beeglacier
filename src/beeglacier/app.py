@@ -15,6 +15,7 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
+from .models.accounts import Account, getaccount
 from .db import DB
 from .components.form import Form
 from .components.table import Table
@@ -455,7 +456,7 @@ class beeglacier(toga.App):
         option_downloads = getattr(self, 'downloads_box', None)
         option_jobs = getattr(self, 'jobs_box', None)
         option_settings = getattr(self, 'credentials_box', None)
-        if option == option_2:
+        if option == option_details:
             self.refresh_option_vault_details()
 
     def refresh_option_vault_details(self):
@@ -641,30 +642,27 @@ class beeglacier(toga.App):
             {
                 'name': 'account_id', 
                 'label': 'Account ID:', 
-                'value': self.account_id, 
                 'validate': ['notnull'],
             },
             {
                 'name': 'access_key', 
                 'label': 'Access Key:', 
-                'value': self.access_key 
             },
             {
                 'name': 'secret_key', 
                 'label': 'Secret Key:', 
-                'value': self.secret_key 
             },
             {
                 'name': 'region_name', 
                 'label': 'Region Name:', 
-                'value': self.region_name 
             },
         ]
         confirm = {
             'label': 'Save credentials', 
             'callback': self.callback_create_account 
         }
-        account_form = Form(fields=fields, confirm=confirm)
+        
+        account_form = Form(fields=fields, confirm=confirm, initial=getaccount())
         self.credentials_box = account_form.getbox()
         global_controls.add_from_controls(account_form.getcontrols(),'Credentials_')
 
@@ -773,8 +771,6 @@ class beeglacier(toga.App):
         vaults_db = self.db.get_vaults(self.account_id)
         if vaults_db:
             self.vaults_table.data = json.loads(vaults_db)
-
-        import pdb;pdb.set_trace()
 
 def main():
     return beeglacier()
