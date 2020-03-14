@@ -15,6 +15,14 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
+from .settings import (
+    HEADERS,
+    HEADERS_ARCHIVES,
+    HEADERS_ON_PROGRESS,
+    HEADERS_DOWNLOADS_JOBS,
+    HEADERS_DOWNLOADS_CURRENT,
+    HEADERS_JOBS
+)
 from .models.accounts import Account
 from .models.deleted_archives import DeletedArchive
 from .models.jobs import Job
@@ -28,38 +36,7 @@ from .utils.strings import TEXT
 from .utils.styles import STYLES
 from .models.jobs import Job
 
-HEADERS = [
-    {'name': 'vaultname', 'label': 'Name'},
-    {'name': 'numberofarchives', 'label': '# Archives'},
-    {'name': 'sizeinbytes', 'label': 'Size (MB)'},
-]
-
-HEADERS_ARCHIVES = [
-    {'name': 'archivedescription', 'label': 'Filename'},
-    {'name': 'size', 'label': 'Size (MB)'},
-]
-
-HEADERS_ON_PROGRESS = [
-    {'name': 'description', 'label': 'Task Description'},
-    {'name': 'progress', 'label': 'Progress'}
-]
-
-HEADERS_DOWNLOADS_JOBS = [
-    {'name': 'description', 'label': 'Job Description'},
-]
-
-HEADERS_DOWNLOADS_CURRENT = [
-    {'name': 'description', 'label': 'Download Description'},
-    {'name': 'progress', 'label': 'Progress'}
-]
-
-HEADERS_JOBS = [
-    {'name': 'description', 'label': 'Job Description'},
-    {'name': 'status', 'label': 'Status'}
-]
-
 global_controls = Controls()
-
 
 class beeglacier(toga.App):
 
@@ -95,22 +72,6 @@ class beeglacier(toga.App):
         x = threading.Thread(target=task, args=args, kwargs=kwargs)
         self.bgtasks.append(x)
         x.start()
-
-    def callback_row_selected(self, row):
-        """ Callback when vault row is selected
-        """
-        if not row:
-            return
-
-        # Update Labels
-        selected_vault_text = TEXT['LABEL_SELECTED_VAULT'] % (row['vaultname'])
-        self._update_control_label('VaultDetail_VaultTitle', selected_vault_text)
-        upload_vault_text = TEXT['LABEL_UPLOAD_VAULT'] % (row['vaultname'])
-        self._update_control_label('Vaults_Upload_VaultName', upload_vault_text)
-        delete_vault_text = TEXT['BTN_DELETE_VAULT'] % (row['vaultname'])
-        self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
-        delete_btn = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
-        delete_btn.enabled = True
 
     def bg_get_vaults_data(self):
         # get account info and create glacier instance
@@ -169,6 +130,7 @@ class beeglacier(toga.App):
 
         upload_id = glacier.create_multipart_upload(vault, filename, partsize)
 
+        # TODO: change this insert for update. Check first if exist.
         uploaddb = Upload.insert({
             'account_id': glacier.account_id,
             'vault': vault,
@@ -224,6 +186,78 @@ class beeglacier(toga.App):
             }).execute()
         self.refresh_option_vault_details()
 
+    def bg_check_jobs(self, vaultname):
+
+        jobs = Job.select().where(
+                    (Job.id == vaultname) &
+                    (Job.done == 0)
+                ).order_by(Job.created_at.desc()).execute()
+        
+        for job in jobs:
+            job_id = job.job_id
+            job_desc = self.glacier_instance.describe_job(vaultname, job_id)
+
+            if not job_desc:
+                # not controlled situation
+                raise Exception('Something is wrong')
+
+            if not job_desc['Completed']:
+                print (f"Job {job_id} is not ready to download")
+            
+            if job_desc['StatusCode'] == 'Succeeded':
+                # donwload job output
+                r = self.glacier_instance.get_job_output(vaultname, job_id)
+                if r['status'] == 200:
+                    job_dict = json.loads(r['body'].read().decode())
+
+                    jobdb = Job.update(
+                            response = json.dumps(job_dict),
+                            done = 0
+                        ).where(Job.id == job_id).execute()
+
+            elif job_desc['StatusCode'] == 'ResourceNotFound':
+                # wrong ...
+                pass 
+            else:
+                # job probably is expired (expires after 24 h I think)
+                # Update database with Expired data 
+                jobdb = Job.update(
+                        response = json.dumps(job_desc),
+                        done = 1,
+                        error = 1
+                    ).where(Job.id == job_id).execute()
+
+        self.refresh_option_vault_details()
+
+    def bg_update_progress_uploads(self, arg2):
+        """ update progress_table """
+        data = []
+        if self.glacier_instance.current_uploads:
+            for key, v in self.glacier_instance.current_uploads.items():
+                print(key)
+                print(v)
+                porcentage = round(v['done']/v['total_parts']*100)
+                progress = f'{porcentage}%'
+                description = f'Uploading: {v["description"]}'
+                data.append({'upload_id': key,'description': description, 'progress': progress})
+        self.progress_table.data = data
+
+    def callback_row_selected(self, row):
+        """ Callback when vault row is selected
+        """
+        if not row:
+            return
+
+        # Update Labels
+        selected_vault_text = TEXT['LABEL_SELECTED_VAULT'] % (row['vaultname'])
+        self._update_control_label('VaultDetail_VaultTitle', selected_vault_text)
+        upload_vault_text = TEXT['LABEL_UPLOAD_VAULT'] % (row['vaultname'])
+        self._update_control_label('Vaults_Upload_VaultName', upload_vault_text)
+        delete_vault_text = TEXT['BTN_DELETE_VAULT'] % (row['vaultname'])
+        self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
+        delete_btn = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
+        delete_btn.enabled = True
+
     def callback_row_selected_archive(self, archive):
         if not archive:
             return
@@ -237,6 +271,11 @@ class beeglacier(toga.App):
             ).execute()
         text = f'{TEXT["PENDING_ARCHIVE_JOBS"]}{len(jobs)}'
         self._update_control_label('VaultDetail_PendingDownload', text)    
+
+    def callback_create_account(self, button):
+        # called after pressed save button
+        values = self.account_form.get_values()
+        Account.saveaccount(values)
 
     def obs_data_table_archives(self, test):
         self.archives_table.data = self.obs_data_archives.data
@@ -395,11 +434,6 @@ class beeglacier(toga.App):
         box.add(btn_create)
         self.create_vault_dialog.content = box
         self.create_vault_dialog.show()
-   
-    def callback_create_account(self, button):
-        # called after pressed save button
-        values = self.account_form.get_values()
-        Account.saveaccount(values)
 
     def on_refresh_vaults(self, button, **kwargs):
         # fetch data with threading
@@ -437,51 +471,9 @@ class beeglacier(toga.App):
     def on_btn_check_jobs(self, button):
         vault_sel = self.vaults_table.selected_row
         if not vault_sel:
-            return
+            return 
         vaultname = vault_sel['vaultname']
-
-        jobs = Job.select().where(
-                    (Job.id == vaultname) &
-                    (Job.done == 0)
-                ).order_by(Job.created_at.desc()).execute()
-        
-        for job in jobs:
-            job_id = job.job_id
-            job_desc = self.glacier_instance.describe_job(vaultname, job_id)
-            print (job_id)
-            print (job_desc)
-
-            if not job_desc:
-                # not controlled situation
-                raise Exception('Something is wrong')
-
-            if not job_desc['Completed']:
-                self.main_window.info_dialog("Info", f"Job {job_id} is not ready to download")
-            
-            if job_desc['StatusCode'] == 'Succeeded':
-                # donwload job output
-                r = self.glacier_instance.get_job_output(vaultname, job_id)
-                if r['status'] == 200:
-                    job_dict = json.loads(r['body'].read().decode())
-
-                    jobdb = Job.update(
-                            response = json.dumps(job_dict),
-                            done = 0
-                        ).where(Job.id == job_id).execute()
-
-            elif job_desc['StatusCode'] == 'ResourceNotFound':
-                # wrong ...
-                pass 
-            else:
-                # job probably is expired (expires after 24 h I think)
-                # Update database with Expired data 
-                jobdb = Job.update(
-                        response = json.dumps(job_desc),
-                        done = 1,
-                        error = 1
-                    ).where(Job.id == job_id).execute()
-
-        self.refresh_option_vault_details()
+        self._execute_bg_task(self.bg_check_jobs, vaultname)
 
     def on_select_option(self, interface, option):
         # Hack for rewriting UI and autoresizing controls
@@ -496,6 +488,16 @@ class beeglacier(toga.App):
         option_settings = getattr(self, 'credentials_box', None)
         if option == option_details:
             self.refresh_option_vault_details()
+
+    def on_pause_upload(self, button):
+        selected_upload = self.progress_table.selected_row
+        if 'upload_id' in selected_upload:    
+            self.glacier_instance.send_pause_upload_signal(selected_upload['upload_id'])
+    
+    def on_resume_upload(self, button):
+        selected_upload = self.progress_table.selected_row
+        if 'upload_id' in selected_upload:    
+            self.glacier_instance.send_pause_upload_signal(selected_upload['upload_id'])
 
     def refresh_option_vault_details(self):
         """ Actions after selecting Vault Detail Option
@@ -722,6 +724,16 @@ class beeglacier(toga.App):
         self.onprogress_box.add(self.progress_table.getbox())
         global_controls.add_from_controls(self.progress_table.getcontrols(),'OnProgress_TableContainer_')
 
+        # OnProgress_PauseUpload: Button
+        self.btn_pause_upload = toga.Button('Pause', on_press=self.on_pause_upload)
+        self.onprogress_box.add(self.btn_pause_upload)
+        global_controls.add('OnProgress_PauseUpload', self.btn_pause_upload.id)
+
+        # OnProgress_ResumeUpload: Button
+        self.btn_resume_upload = toga.Button('Resume', on_press=self.on_resume_upload)
+        self.onprogress_box.add(self.btn_resume_upload)
+        global_controls.add('OnProgress_ResumeUpload', self.btn_resume_upload.id)
+
         # DownloadBox: Box (Inside Option Download)
         self.downloads_box = toga.Box(style=STYLES['OPTION_BOX'])
         global_controls.add('DownloadBox', self.downloads_box.id)
@@ -751,24 +763,13 @@ class beeglacier(toga.App):
         
         self.main_box.add(container)
         global_controls.add('Main_OptionContainer', container.id)
-
-    def update_progress_uploads(self, arg2):
-        """ update progress_table """
-        data = []
-        if self.glacier_instance.current_uploads:
-            for key, v in self.glacier_instance.current_uploads.items():
-                porcentage = round(v['done']/v['total_parts']*100)
-                progress = f'{porcentage}%'
-                description = f'Uploading: {v["description"]}'
-                data.append({'description': description, 'progress': progress})
-        self.progress_table.data = data
         
     def launch_bg_update_onprogress(self):
         """ launch a bg task for refresh UI. This is called by an
             observable inside Glacier Instance. Every time "current_uploads"
             change, this task is called
         """
-        self.add_background_task(self.update_progress_uploads)
+        self.add_background_task(self.bg_update_progress_uploads)
     
     def pre_init(self):
         self.account = Account.getaccount(object)

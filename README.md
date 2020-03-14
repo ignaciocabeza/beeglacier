@@ -41,8 +41,10 @@ briefcase dev
 ## To-do
 
 - [x] [Start Inventory Job] Make async
-- [ ] [Check Inventory Job] Make async
-- [ ] [Upload Archive] Stop, Cancel and Resume Uploads
+- [x] [Check Inventory Job] Make async
+- [ ] Only allow one inventory retrieval job at the same time for each vault
+- [ ] [Upload Archive] Stop, Cancel and Resume Uploads (WIP)
+- [ ] [Upload Archive] Show list of on progress upload when response of DB is null (WIP)
 - [ ] [Delete Archive] Add Delete information to archives data table
 - [ ] [Download Archive] Async Download
 - [ ] [Download Archive] Progress Bar when donwload
@@ -52,7 +54,7 @@ briefcase dev
 - [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
-- [ ] [System Wide] Use ORM for Sqlite3
+- [x] [System Wide] Use ORM for Sqlite3
 - [ ] [System Wide] Flake8
 
 ## Beeware

@@ -6,9 +6,6 @@ from peewee import (
 )
 
 from . import db, get_timestamp
-from ..settings import (
-    SQL_TIMESTAMP
-)
 
 
 class DeletedArchive(Model):

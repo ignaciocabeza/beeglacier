@@ -27,7 +27,7 @@ class Glacier():
         'IDUPLOAD': {
             'description': 'test.zip', 
             'uploading': 10, 
-            'status': 'UPLOADING', 
+            'status': 'UPLOADING', 'PAUSE'
             'total_parts':12, 
             'done': 2
         }
@@ -265,6 +265,11 @@ class Glacier():
             done, not_done = concurrent.futures.wait(
                 futures_list, return_when=concurrent.futures.FIRST_EXCEPTION)
             if len(not_done) > 0:
+
+                if self._current_uploads[upload_id]['status'] == 'PAUSING':
+                    print ('paused')
+                    self._update_current_upload(upload_id, {'status': 'PAUSED'})
+
                 # an exception occured
                 for future in not_done:
                     future.cancel()
@@ -310,6 +315,13 @@ class Glacier():
 
     def upload_part(self, byte_pos, vault_name, upload_id, part_size, fileobj, file_size,
                     num_parts):
+
+        part_num = byte_pos // part_size
+
+        if self._current_uploads[upload_id]['status'] == 'PAUSING':
+            print ('part_paused')
+            sys.exit(1)
+
         fileblock.acquire()
         fileobj.seek(byte_pos)
         part = fileobj.read(part_size)
@@ -317,7 +329,7 @@ class Glacier():
 
         range_header = 'bytes {}-{}/{}'.format(
             byte_pos, byte_pos + len(part) - 1, file_size)
-        part_num = byte_pos // part_size
+        
         percentage = part_num / num_parts
 
         uploading = self.current_uploads[upload_id]['uploading'] + 1
@@ -402,3 +414,8 @@ class Glacier():
         for callback in self._current_uploads_observers:
             callback()
 
+    def send_pause_upload_signal(self, upload_id):
+        self._current_uploads[upload_id]['status'] = 'PAUSING'
+
+        for callback in self._current_uploads_observers:
+            callback()
