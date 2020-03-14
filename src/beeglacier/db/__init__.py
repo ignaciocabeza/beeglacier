@@ -1,4 +1,4 @@
-import sqlite3
+"""import sqlite3
 import json
 
 class DB:
@@ -53,28 +53,6 @@ class DB:
             c.execute(create_sql)
             self.conn.commit()
 
-    def get_account(self):
-        select_sql = "SELECT * FROM accounts"
-        c = self.conn.cursor()
-        c.execute(select_sql)
-        account = c.fetchone()
-        return account
-
-    def save_account(self, account_id, access_key, secret_key, region_name):
-        existing_account = self.get_account()
-        if existing_account:
-            existing_account_id = existing_account[0]
-            sql = "UPDATE accounts SET account_id='%s', access_key='%s', secret_key='%s', region_name='%s' " + \
-                  "WHERE account_id='%s';" 
-            sql = sql % (account_id,access_key, secret_key, region_name, existing_account_id)
-        else:
-            sql = "INSERT INTO accounts (account_id, access_key, secret_key, region_name) " + \
-                  "VALUES ('%s','%s', '%s', '%s');" % (account_id,access_key, secret_key, region_name)
-        
-        c = self.conn.cursor()
-        c.execute(sql)
-        self.conn.commit() 
-
     def create_upload(self, account_id, upload_id, filepath, vault):
         sql = "INSERT INTO uploads (account_id, upload_id, filepath, vault) " + \
               "VALUES ('%s','%s', '%s', '%s');" % (account_id, upload_id, filepath, vault)
@@ -89,77 +67,90 @@ class DB:
         c = self.conn.cursor()
         c.execute(sql)
         self.conn.commit() 
+"""
+"""
+def create_job(self, id, job_id, job_type, archive_id=''):
+    sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done, error, archiveid) " + \
+            "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0, 0, '%s');" % (id, job_id, job_type, archive_id)
+    c = self.conn.cursor()
+    c.execute(sql)
+    self.conn.commit() 
+"""
 
-    def create_job(self, id, job_id, job_type, archive_id=''):
-        sql = "INSERT INTO jobs (id, job_id, created_at, job_type, done, error, archiveid) " + \
-              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER), '%s', 0, 0, '%s');" % (id, job_id, job_type, archive_id)
-        c = self.conn.cursor()
-        c.execute(sql)
-        self.conn.commit() 
-
-    def get_inventory_jobs(self, vault_name, status = 'pending'):
+"""
+def get_inventory_jobs(self, vault_name, status = 'pending'):
+    done = ' AND done=0 '
+    order = 'created_at'
+    if status == 'all':
+        done = ' '
+    elif status == 'pending':
         done = ' AND done=0 '
-        order = 'created_at'
-        if status == 'all':
-            done = ' '
-        elif status == 'pending':
-            done = ' AND done=0 '
-        elif status == 'finished':
-            done = ' AND done=1 AND error=0'
-            order = 'updated_at'
-        elif status == 'failed':
-            done = ' AND done=1 AND error=1'
-            order = 'updated_at'
+    elif status == 'finished':
+        done = ' AND done=1 AND error=0'
+        order = 'updated_at'
+    elif status == 'failed':
+        done = ' AND done=1 AND error=1'
+        order = 'updated_at'
+    
+    select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE id='%s' %s ORDER BY %s DESC;" % (vault_name, done, order)
+    c = self.conn.cursor()
+    c.execute(select_sql)
+    jobs = c.fetchall()
+    return jobs
+"""
+"""
+def get_archive_jobs(self, archiveid, status = 'pending'):
+    done = ' AND done=0 '
+    order = 'created_at'
+    if status == 'all':
+        done = ' '
+    if status == 'finished':
+        done = ' AND done=1 '
+        order = 'updated_at'
         
-        select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE id='%s' %s ORDER BY %s DESC;" % (vault_name, done, order)
-        c = self.conn.cursor()
-        c.execute(select_sql)
-        jobs = c.fetchall()
-        return jobs
-    
-    def get_archive_jobs(self, archiveid, status = 'pending'):
-        done = ' AND done=0 '
-        order = 'created_at'
-        if status == 'all':
-            done = ' '
-        if status == 'finished':
-            done = ' AND done=1 '
-            order = 'updated_at'
-            
-        select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE archiveid='%s' %s ORDER BY %s DESC;" % (archiveid, done, order)
-        c = self.conn.cursor()
-        c.execute(select_sql)
-        jobs = c.fetchall()
-        return jobs
+    select_sql = "SELECT job_id, response, created_at, updated_at FROM jobs WHERE archiveid='%s' %s ORDER BY %s DESC;" % (archiveid, done, order)
+    c = self.conn.cursor()
+    c.execute(select_sql)
+    jobs = c.fetchall()
+    return jobs
+"""
+"""
+def update_job(self, job_id, response, status, error=0):
+    sql = "UPDATE jobs SET response='%s', done=%s, error=%s updated_at=CAST(strftime('%%s','now') as INTEGER) " + \
+            "WHERE job_id = '%s';"
+    sql = sql % (json.dumps(response), str(status), error, job_id)
+    c = self.conn.cursor()
+    c.execute(sql)
+    self.conn.commit() 
+"""
+"""
+def create_vaults(self, account_id, response):
+    sql = "INSERT INTO vaults (account_id, response, updated_at) " + \
+            "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER) );" % (account_id, response)
+    c = self.conn.cursor()
+    c.execute(sql)
+    self.conn.commit()
+"""
 
-    def update_job(self, job_id, response, status, error=0):
-        sql = "UPDATE jobs SET response='%s', done=%s, error=%s updated_at=CAST(strftime('%%s','now') as INTEGER) " + \
-              "WHERE job_id = '%s';"
-        sql = sql % (json.dumps(response), str(status), error, job_id)
-        c = self.conn.cursor()
-        c.execute(sql)
-        self.conn.commit() 
-
-    def create_vaults(self, account_id, response):
-        sql = "INSERT INTO vaults (account_id, response, updated_at) " + \
-              "VALUES ('%s','%s', CAST(strftime('%%s','now') as INTEGER) );" % (account_id, response)
-        c = self.conn.cursor()
-        c.execute(sql)
-        self.conn.commit()
-    
-    def get_vaults(self, account_id):
-        select_sql = "SELECT response FROM vaults WHERE account_id='%s' ORDER BY updated_at DESC LIMIT 1;" % (account_id)
-        c = self.conn.cursor()
-        c.execute(select_sql)
-        vaults = c.fetchone()
+"""
+def get_vaults(self, account_id):
+    select_sql = "SELECT response FROM vaults WHERE account_id='%s' ORDER BY updated_at DESC LIMIT 1;" % (account_id)
+    c = self.conn.cursor()
+    c.execute(select_sql)
+    vaults = c.fetchone()
+    if vaults:
         return vaults[0]
+    else:
+        return None
+"""
+"""
+def insert_deleted_archive(self, vaultname, archiveid, response):
+    sql = f"INSERT INTO deleted_archives " \
+            f"(vaultname, archiveid, response, deleted_at) " \
+            f"VALUES ('{vaultname}', '{archiveid}', '{response}', " \
+            f"CAST(strftime('%s','now') as INTEGER));"
 
-    def insert_deleted_archive(self, vaultname, archiveid, response):
-        sql = f"INSERT INTO deleted_archives " \
-              f"(vaultname, archiveid, response, deleted_at) " \
-              f"VALUES ('{vaultname}', '{archiveid}', '{response}', " \
-              f"CAST(strftime('%s','now') as INTEGER));"
-
-        cursor = self.conn.cursor()
-        cursor.execute(sql)
-        self.conn.commit()
+    cursor = self.conn.cursor()
+    cursor.execute(sql)
+    self.conn.commit()
+"""

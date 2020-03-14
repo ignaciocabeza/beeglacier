@@ -15,8 +15,11 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
-from .models.accounts import Account, getaccount
-from .db import DB
+from .models.accounts import Account
+from .models.deleted_archives import DeletedArchive
+from .models.jobs import Job
+from .models.uploads import Upload
+from .models.vaults import Vault
 from .components.form import Form
 from .components.table import Table
 from .utils import ObsData, Controls
@@ -25,7 +28,6 @@ from .utils.strings import TEXT
 from .utils.styles import STYLES
 from .models.jobs import Job
 
-DB_PATH = os.path.join(Path.home(), '.beeglacier.sqlite')
 HEADERS = [
     {'name': 'vaultname', 'label': 'Name'},
     {'name': 'numberofarchives', 'label': '# Archives'},
@@ -63,22 +65,17 @@ class beeglacier(toga.App):
 
     glacier_instance = None
     vaults_table = None
-    account_id = None
-    access_key = None
-    secret_key = None
-    region_name = None
-
+    
     bgtasks = list()
 
     # observables datas
     obs_data_archives = None
 
-    def _connect_db_and_glacier(self):
-        db = DB(DB_PATH)
-        aid, akey, skey, reg = db.get_account()
+    def _connect_glacier(self):
+        aid, akey, skey, reg = Account.getaccount()
         if not self.glacier_instance:
             self.glacier_instance = Glacier(aid, akey, skey, reg)
-        return db, self.glacier_instance
+        return self.glacier_instance
 
     def _update_control_label(self, name, value):
         """ Given a name, update label text.
@@ -118,7 +115,7 @@ class beeglacier(toga.App):
     def bg_get_vaults_data(self):
         # get account info and create glacier instance
         # In background task is necessary to do this
-        db, glacier = self._connect_db_and_glacier()
+        glacier = self._connect_glacier()
 
         onprogressid = self.progress_table.append({'description': 'Get Vaults', 'progress': 'on progress'})
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
@@ -143,7 +140,10 @@ class beeglacier(toga.App):
                 vaults = []
 
         # save to database
-        db.create_vaults(glacier.account_id, json.dumps(data))
+        vault_db = Vault.insert(
+            account_id = glacier.account_id,
+            response = json.dumps(data)
+        ).execute()
 
         # update table
         self.vaults_table.data = data
@@ -162,20 +162,27 @@ class beeglacier(toga.App):
         vault = kwargs['vaultname']
         path = kwargs['fullpath']
 
-        db, glacier = self._connect_db_and_glacier()
-        db = DB(DB_PATH)
+        glacier = self._connect_glacier()
 
         filename = ntpath.basename(path)
         partsize = 4
 
         upload_id = glacier.create_multipart_upload(vault, filename, partsize)
-        db.create_upload(glacier.account_id, upload_id, path, vault)
+
+        uploaddb = Upload.insert({
+            'account_id': glacier.account_id,
+            'vault': vault,
+            'upload_id': upload_id,
+            'filepath': path
+        }).execute()
 
         response = glacier.upload(vault, path, filename, partsize, 4, upload_id)
-        db.save_upload_response(upload_id, json.dumps(response))
+
+        update_upload = Upload.update(response = json.dumps(response)) \
+                              .where(Upload.upload_id == upload_id).execute()
 
     def bg_delete_vault(self, *args, **kwargs):
-        db, glacier = self._connect_db_and_glacier()
+        glacier = self._connect_glacier()
         
         if 'vaultname' in kwargs:
             vaultname = kwargs['vaultname']
@@ -200,14 +207,21 @@ class beeglacier(toga.App):
 
         #delete file
         response = self.glacier_instance.delete_archive(vaultname, archiveid)
-        db.insert_deleted_archive(vaultname, archiveid, json.dumps(response))
+        DeletedArchive.insert({
+            'vaultname': vaultname,
+            'archiveid': archiveid,
+            'response': json.dumps(response)
+        }).execute()
 
     def bg_start_inv_job(self, vaultname):
         """ Start an inventory job and save response to db
         """
-        db = DB(DB_PATH)
         res = self.glacier_instance.initiate_inventory_retrieval(vaultname)
-        db.create_job(vaultname, res.id, 'inventory')
+        jobdb = Job.insert({
+                'id': vaultname,
+                'job_id': res.id,
+                'job_type': 'inventory'
+            }).execute()
         self.refresh_option_vault_details()
 
     def callback_row_selected_archive(self, archive):
@@ -217,8 +231,11 @@ class beeglacier(toga.App):
         text = TEXT['LABEL_SELECTED_ARCHIVE'] % (archive['archivedescription'])
         self._update_control_label('VaultDetail_ArchiveTitle', text)
 
-        jobs = self.db.get_archive_jobs(archive['archiveid'])
-        text = TEXT['PENDING_ARCHIVE_JOBS'] % (str(len(jobs)))
+        jobs = Job.select().where(
+                (Job.archiveid == archive['archiveid']) &
+                (Job.done == 0)
+            ).execute()
+        text = f'{TEXT["PENDING_ARCHIVE_JOBS"]}{len(jobs)}'
         self._update_control_label('VaultDetail_PendingDownload', text)    
 
     def obs_data_table_archives(self, test):
@@ -241,9 +258,13 @@ class beeglacier(toga.App):
         vaultname = vault['vaultname']
 
         if archive:
-            jobs = self.db.get_archive_jobs(archive['archiveid'])
+            jobs = Job.select().where(
+                (Job.archiveid == archive['archiveid']) &
+                (Job.done == 0)
+            ).execute()
+
             if jobs:
-                job_id = jobs[0][0]
+                job_id = jobs[0].id
                 
                 job_description = self.glacier_instance.describe_job(vaultname, job_id)
                 print (job_description)
@@ -291,8 +312,6 @@ class beeglacier(toga.App):
                                 f.write(body)
                                 f.close()
 
-                            #self.db.update_job(job_id, job_dict ,1)
-
                     import os
                     os.rename(file_path_temp, file_path_final)
                     # check archive checksum    
@@ -312,7 +331,12 @@ class beeglacier(toga.App):
             
             # TO-DO: Create confirm dialog
             response = self.glacier_instance.initiate_archive_retrieval(vaultname, archive_id)
-            self.db.create_job(vaultname, response.id, 'archive', archive_id=archive_id)
+            jobdb = Job.insert({
+                'vaultname': vaultname,
+                'id': response.id,
+                'job_type': 'archive',
+                'archiveid': archive_id
+            }).execute()
 
     def on_delete_vault(self, button):
 
@@ -372,14 +396,10 @@ class beeglacier(toga.App):
         self.create_vault_dialog.content = box
         self.create_vault_dialog.show()
    
-    def callback_create_account(self,button):
+    def callback_create_account(self, button):
         # called after pressed save button
-        self.account_id = self.account_form.get_field_value('account_id')
-        self.access_key = self.account_form.get_field_value('access_key')
-        self.secret_key = self.account_form.get_field_value('secret_key')
-        self.region_name = self.account_form.get_field_value('region_name')
-        self.db.save_account(self.account_id, self.access_key, 
-                             self.secret_key, self.region_name)
+        values = self.account_form.get_values()
+        Account.saveaccount(values)
 
     def on_refresh_vaults(self, button, **kwargs):
         # fetch data with threading
@@ -420,10 +440,16 @@ class beeglacier(toga.App):
             return
         vaultname = vault_sel['vaultname']
 
-        jobs = self.db.get_inventory_jobs(vaultname)
+        jobs = Job.select().where(
+                    (Job.id == vaultname) &
+                    (Job.done == 0)
+                ).order_by(Job.created_at.desc()).execute()
+        
         for job in jobs:
-            job_id = job[0]
+            job_id = job.job_id
             job_desc = self.glacier_instance.describe_job(vaultname, job_id)
+            print (job_id)
+            print (job_desc)
 
             if not job_desc:
                 # not controlled situation
@@ -431,17 +457,29 @@ class beeglacier(toga.App):
 
             if not job_desc['Completed']:
                 self.main_window.info_dialog("Info", f"Job {job_id} is not ready to download")
-
+            
             if job_desc['StatusCode'] == 'Succeeded':
                 # donwload job output
                 r = self.glacier_instance.get_job_output(vaultname, job_id)
                 if r['status'] == 200:
                     job_dict = json.loads(r['body'].read().decode())
-                    self.db.update_job(job_id, job_dict ,1)
+
+                    jobdb = Job.update(
+                            response = json.dumps(job_dict),
+                            done = 0
+                        ).where(Job.id == job_id).execute()
+
             elif job_desc['StatusCode'] == 'ResourceNotFound':
+                # wrong ...
+                pass 
+            else:
                 # job probably is expired (expires after 24 h I think)
                 # Update database with Expired data 
-                self.db.update_job(job_id, job_desc ,1, 1)
+                jobdb = Job.update(
+                        response = json.dumps(job_desc),
+                        done = 1,
+                        error = 1
+                    ).where(Job.id == job_id).execute()
 
         self.refresh_option_vault_details()
 
@@ -464,21 +502,29 @@ class beeglacier(toga.App):
             - Get Pending Jobs
             - Populate Vault Archive Table
         """
-        db = DB(DB_PATH)
         if not self.vaults_table.selected_row:
             return None
 
         selected_vault_name = self.vaults_table.selected_row['vaultname']
 
         self.obs_data_archives.data = []
-        jobs = db.get_inventory_jobs(selected_vault_name)
+        jobs = Job.select().where(
+                    (Job.id == selected_vault_name) &
+                    (Job.done == 0)
+                  ).order_by(Job.created_at.desc()).execute()
 
         text_pend_jobs = f'{TEXT["PENDING_INVENTORY_JOBS"]} {len(jobs)}'
         self.vault_pending_jobs.text = text_pend_jobs
 
-        done_jobs = db.get_inventory_jobs(selected_vault_name, status='finished')
+        done_jobs = Job.select().where(
+                    (Job.id == selected_vault_name) &
+                    (Job.done == 1) &
+                    (Job.error == 0)
+                  ).order_by(Job.created_at.desc()).execute()
+
+        
         if len(done_jobs):
-            last_job_done = json.loads(done_jobs[0][1])
+            last_job_done = json.loads(done_jobs[0].response)
             list_archives = last_job_done['ArchiveList']
             data = []
             for archive in list_archives:
@@ -662,9 +708,9 @@ class beeglacier(toga.App):
             'callback': self.callback_create_account 
         }
         
-        account_form = Form(fields=fields, confirm=confirm, initial=getaccount())
-        self.credentials_box = account_form.getbox()
-        global_controls.add_from_controls(account_form.getcontrols(),'Credentials_')
+        self.account_form = Form(fields=fields, confirm=confirm, initial=Account.getaccount())
+        self.credentials_box = self.account_form.getbox()
+        global_controls.add_from_controls(self.account_form.getcontrols(),'Credentials_')
 
         # OnProgress: Box
         self.onprogress_box = toga.Box(style=STYLES['OPTION_BOX'])
@@ -725,17 +771,16 @@ class beeglacier(toga.App):
         self.add_background_task(self.update_progress_uploads)
     
     def pre_init(self):
-        self.db = DB(DB_PATH)
-        self.account = self.db.get_account()
+        self.account = Account.getaccount(object)
         if not self.account:
             return False
         else:
-            self.account_id = self.account[0]
-            self.access_key = self.account[1]
-            self.secret_key = self.account[2]
-            self.region_name = self.account[3]
-            self.glacier_instance = Glacier(self.account_id, self.access_key,
-                                            self.secret_key, self.region_name)
+            self.glacier_instance = Glacier(
+                self.account.account_id, 
+                self.account.access_key,
+                self.account.secret_key, 
+                self.account.region_name
+            )
 
         # register an observable for current uploads status change
         self.glacier_instance.subscribe('current_uploads_change', 
@@ -767,10 +812,12 @@ class beeglacier(toga.App):
         self.obs_data_archives = ObsData()
         self.obs_data_archives.bind_to(self.obs_data_table_archives)
 
-        # get last retrieve of vaults from database 
-        vaults_db = self.db.get_vaults(self.account_id)
+        # get last retrieve of vaults from database
+        vaults_db = Vault.select() \
+                         .where(Vault.account_id == self.account.account_id) \
+                         .order_by(Vault.updated_at.desc()).limit(1).execute()
         if vaults_db:
-            self.vaults_table.data = json.loads(vaults_db)
+            self.vaults_table.data = json.loads(vaults_db[0].response)
 
 def main():
     return beeglacier()

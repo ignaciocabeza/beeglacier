@@ -98,5 +98,9 @@ class Form(Base):
         if self._validate_fields():
             self.callback_confirm(button)
 
-    def get_field_value(self, field_name):
+    def get_values(self):
+        """ return all values from the form """
+        return { name: field['input'].value for name, field in self.fields.items() }
+
+    def get_value(self, field_name):
         return self.fields[field_name]['input'].value

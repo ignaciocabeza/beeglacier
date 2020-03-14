@@ -3,10 +3,11 @@ from peewee import (
     CharField,
     TextField,
     TimestampField,
-    BooleanField
+    BooleanField,
+    IntegerField
 )
 
-from . import db
+from . import db, get_timestamp
 from ..settings import (
     SQL_TIMESTAMP
 )
@@ -14,12 +15,13 @@ from ..settings import (
 
 class Job(Model):
     id = CharField()
-    archiveid = TextField()
+    job_id = CharField()
+    archiveid = TextField(default='')
     job_type = CharField()
-    created_at = TimestampField(default=SQL_TIMESTAMP)
-    done = BooleanField()
     response = TextField()
-    error = BooleanField()
+    created_at = TimestampField(default=get_timestamp)
+    done = IntegerField(default=0)
+    error = IntegerField(default=0)
 
     class Meta:
         database = db

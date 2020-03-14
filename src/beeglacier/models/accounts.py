@@ -11,15 +11,39 @@ class Account(Model):
     class Meta:
         database = db
         table_name = 'accounts'
+    
+    @staticmethod
+    def getaccount(response_type=dict):
 
-def getaccount():
-    account = Account.get_or_none()
-    if account:
-        return {
-            'account_id': account.account_id,
-            'access_key': account.access_key,
-            'secret_key': account.secret_key,
-            'region_name': account.region_name
-        }
-    else:
-        return {}
+        account = Account.get_or_none()
+        if response_type == object:
+            return account
+        
+        if account:
+            return {
+                'account_id': account.account_id,
+                'access_key': account.access_key,
+                'secret_key': account.secret_key,
+                'region_name': account.region_name
+            }
+        else:
+            return {}
+        
+    @staticmethod
+    def saveaccount(account):
+        required_fields = sorted([
+            'account_id', 'access_key', 'secret_key', 'region_name'
+        ])
+
+        if required_fields != sorted(account):
+            raise Exception(f'Required: {required_fields}')
+        
+        existing = Account.getaccount(object)
+        if existing:
+            # update
+            update = existing.update(**account)
+            update.execute()
+        else:
+            # new
+            new = Account(**account)
+            new.save()

@@ -1,3 +1,4 @@
+from datetime import datetime
 from peewee import SqliteDatabase
 
 from ..settings import (
@@ -5,3 +6,6 @@ from ..settings import (
 )
 
 db = SqliteDatabase(DB_PATH)
+
+def get_timestamp():
+    return datetime.timestamp(datetime.now())
