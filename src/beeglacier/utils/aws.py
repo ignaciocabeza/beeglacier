@@ -8,6 +8,7 @@ import tarfile
 import tempfile
 import threading
 import boto3
+import ntpath
 
 MAX_ATTEMPTS = 10
 fileblock = threading.Lock()
@@ -25,9 +26,11 @@ class Glacier():
     Current Upload structure:
     {
         'IDUPLOAD': {
+            'vault': 'asdsad',
+            'path': '/cscas/cascsa/cascsa.zip'
             'description': 'test.zip', 
             'uploading': 10, 
-            'status': 'UPLOADING', 'PAUSE'
+            'status': 'UPLOADING', 'PAUSED'
             'total_parts':12, 
             'done': 2
         }
@@ -126,7 +129,7 @@ class Glacier():
             body=archive,
         )
 
-    def create_multipart_upload(self, vault_name, arc_desc, part_size):
+    def create_multipart_upload(self, vault_name, arc_desc, part_size, path):
 
         part_size = part_size * 1024 * 1024
 
@@ -137,7 +140,9 @@ class Glacier():
         )
 
         new_upload_info = {
+            'vault': vault_name,
             'description': arc_desc,
+            'path': path,
             'status':'NOT_STARTED',
             'total_parts': 0, 
             'uploading': 0, 
@@ -158,25 +163,25 @@ class Glacier():
             raise ValueError('part-size must be more than 1 MB '
                              'and less than 4096 MB')
 
-        print('Reading file...')
+        # print('Reading file...')
         if os.path.isdir(file_name):
-            print('Tarring file...')
+            # print('Tarring file...')
             file_to_upload = tempfile.TemporaryFile()
             tar = tarfile.open(fileobj=file_to_upload, mode='w:xz')
             for filename in file_name:
                 tar.add(filename)
             tar.close()
-            print('File tarred.')
+            # print('File tarred.')
         else:
             file_to_upload = open(file_name, mode='rb')
-            print('Opened single file.')
+            # print('Opened single file.')
 
         part_size = part_size * 1024 * 1024
 
         file_size = file_to_upload.seek(0, 2)
 
         if file_size < 4096:
-            print('File size is less than 4 MB. Uploading in one request...')
+            # print('File size is less than 4 MB. Uploading in one request...')
 
             response = self.glacier.upload_archive(
                 vaultName=vault_name,
@@ -191,11 +196,11 @@ class Glacier():
             }
             self._update_current_upload(upload_id, to_update)
 
-            print('Uploaded.')
-            print('Glacier tree hash: %s' % response['checksum'])
-            print('Location: %s' % response['location'])
-            print('Archive ID: %s' % response['archiveId'])
-            print('Done.')
+            #print('Uploaded.')
+            #print('Glacier tree hash: %s' % response['checksum'])
+            #print('Location: %s' % response['location'])
+            #print('Archive ID: %s' % response['archiveId'])
+            #print('Done.')
             file_to_upload.close()
             return
 
@@ -203,7 +208,7 @@ class Glacier():
         list_of_checksums = []
 
         if upload_id is None:
-            print('Initiating multipart upload...')
+            # print('Initiating multipart upload...')
             response = self.glacier.initiate_multipart_upload(
                 vaultName=vault_name,
                 archiveDescription=arc_desc,
@@ -216,25 +221,27 @@ class Glacier():
                 list_of_checksums.append(None)
 
             num_parts = len(job_list)
-            print('File size is {} bytes. Will upload in {} parts.'.format(file_size, num_parts))
+            #print('File size is {} bytes. Will upload in {} parts.'.format(file_size, num_parts))
         else:
-            print('Resuming upload...')
+            #print('Resuming upload...')
 
-            print('Fetching already uploaded parts...')
+            #print('Fetching already uploaded parts...')
             response = self.glacier.list_parts(
                 vaultName=vault_name,
                 uploadId=upload_id
             )
             parts = response['Parts']
+            print (response)
             part_size = response['PartSizeInBytes']
             while 'Marker' in response:
-                print('Getting more parts...')
+                #print('Getting more parts...')
                 response = self.glacier.list_parts(
                     vaultName=vault_name,
                     uploadId=upload_id,
                     marker=response['Marker']
                 )
                 parts.extend(response['Parts'])
+                
 
             for byte_pos in range(0, file_size, part_size):
                 job_list.append(byte_pos)
@@ -253,10 +260,10 @@ class Glacier():
                     part_num = byte_start // part_size
                     list_of_checksums[part_num] = checksum
 
-        to_update = {'status': 'UPLOADING', 'total_parts': num_parts}
+        to_update = {'status': 'UPLOADING', 'total_parts': num_parts, 'done': num_parts-len(job_list)}
         self._update_current_upload(upload_id, to_update)
 
-        print('Spawning threads...')
+        #print('Spawning threads...')
         with concurrent.futures.ThreadPoolExecutor(
                 max_workers=num_threads) as executor:
             futures_list = {executor.submit(
@@ -267,7 +274,7 @@ class Glacier():
             if len(not_done) > 0:
 
                 if self._current_uploads[upload_id]['status'] == 'PAUSING':
-                    print ('paused')
+                    print("paused")
                     self._update_current_upload(upload_id, {'status': 'PAUSED'})
 
                 # an exception occured
@@ -277,8 +284,8 @@ class Glacier():
                     e = future.exception()
                     if e is not None:
                         print('Exception occured: %r' % e)
-                print('Upload not aborted. Upload id: %s' % upload_id)
-                print('Exiting.')
+                #print('Upload not aborted. Upload id: %s' % upload_id)
+                #print('Exiting.')
                 file_to_upload.close()
                 sys.exit(1)
             else:
@@ -288,27 +295,27 @@ class Glacier():
                     list_of_checksums[job_index] = future.result()
 
         if len(list_of_checksums) != num_parts:
-            print('List of checksums incomplete. Recalculating...')
+            #print('List of checksums incomplete. Recalculating...')
             list_of_checksums = []
             for byte_pos in range(0, file_size, part_size):
                 part_num = int(byte_pos / part_size)
-                print('Checksum %s of %s...' % (part_num + 1, num_parts))
+                # print('Checksum %s of %s...' % (part_num + 1, num_parts))
                 file_to_upload.seek(byte_pos)
                 part = file_to_upload.read(part_size)
                 list_of_checksums.append(self.calculate_tree_hash(part, part_size))
 
         total_tree_hash = self.calculate_total_tree_hash(list_of_checksums)
 
-        print('Completing multipart upload...')
+        #print('Completing multipart upload...')
         response = self.glacier.complete_multipart_upload(
             vaultName=vault_name, uploadId=upload_id,
             archiveSize=str(file_size), checksum=total_tree_hash)
-        print('Upload successful.')
-        print('Calculated total tree hash: %s' % total_tree_hash)
-        print('Glacier total tree hash: %s' % response['checksum'])
-        print('Location: %s' % response['location'])
-        print('Archive ID: %s' % response['archiveId'])
-        print('Done.')
+        #print('Upload successful.')
+        #print('Calculated total tree hash: %s' % total_tree_hash)
+        #print('Glacier total tree hash: %s' % response['checksum'])
+        #print('Location: %s' % response['location'])
+        #print('Archive ID: %s' % response['archiveId'])
+        #print('Done.')
         self._update_current_upload(upload_id, {'status': 'FINISHED'})
         file_to_upload.close()
         return response
@@ -354,8 +361,8 @@ class Glacier():
                 print('Upload error:', sys.exc_info()[0])
                 print('Trying again. Part {0}'.format(part_num + 1))
         else:
-            print('After multiple attempts, still failed to upload part')
-            print('Exiting.')
+            #print('After multiple attempts, still failed to upload part')
+            #print('Exiting.')
             sys.exit(1)
 
         self.temp_current = self.current_uploads
@@ -416,6 +423,22 @@ class Glacier():
 
     def send_pause_upload_signal(self, upload_id):
         self._current_uploads[upload_id]['status'] = 'PAUSING'
+
+        for callback in self._current_uploads_observers:
+            callback()
+
+    def add_paused_uploads(self, vault, upload_id, path):
+        filename = ntpath.basename(path)
+        self._current_uploads[upload_id] = {
+            'vault': vault,
+            'upload_id': upload_id,
+            'path': path,
+            'description': filename,
+            'status': 'PAUSED',
+            'total_parts': 0, 
+            'uploading': 0, 
+            'done': 0
+        }
 
         for callback in self._current_uploads_observers:
             callback()

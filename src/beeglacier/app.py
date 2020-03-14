@@ -128,15 +128,16 @@ class beeglacier(toga.App):
         filename = ntpath.basename(path)
         partsize = 4
 
-        upload_id = glacier.create_multipart_upload(vault, filename, partsize)
+        upload_id = glacier.create_multipart_upload(vault, filename, partsize, path)
 
-        # TODO: change this insert for update. Check first if exist.
-        uploaddb = Upload.insert({
-            'account_id': glacier.account_id,
-            'vault': vault,
-            'upload_id': upload_id,
-            'filepath': path
-        }).execute()
+        uploaddb = Upload.get_or_none(Upload.upload_id == upload_id)
+        if not uploaddb:
+            uploaddb = Upload.insert({
+                'account_id': glacier.account_id,
+                'vault': vault,
+                'upload_id': upload_id,
+                'filepath': path
+            }).execute()
 
         response = glacier.upload(vault, path, filename, partsize, 4, upload_id)
 
@@ -234,12 +235,21 @@ class beeglacier(toga.App):
         data = []
         if self.glacier_instance.current_uploads:
             for key, v in self.glacier_instance.current_uploads.items():
-                print(key)
-                print(v)
-                porcentage = round(v['done']/v['total_parts']*100)
-                progress = f'{porcentage}%'
+                try:
+                    porcentage = round(v['done']/v['total_parts']*100)
+                    progress = f'{porcentage}%'
+                except:
+                    porcentage = 0
+                    progress = '0'
+
                 description = f'Uploading: {v["description"]}'
-                data.append({'upload_id': key,'description': description, 'progress': progress})
+                data.append({
+                    'vault': v['vault'],
+                    'upload_id': key,
+                    'path': v['path'],
+                    'description': description, 
+                    'progress': progress}
+                )
         self.progress_table.data = data
 
     def callback_row_selected(self, row):
@@ -496,8 +506,16 @@ class beeglacier(toga.App):
     
     def on_resume_upload(self, button):
         selected_upload = self.progress_table.selected_row
-        if 'upload_id' in selected_upload:    
-            self.glacier_instance.send_pause_upload_signal(selected_upload['upload_id'])
+        if 'upload_id' in selected_upload: 
+            upload_id = selected_upload['upload_id']
+            vault = selected_upload['vault']
+            partsize = 4
+            path = selected_upload['path']
+            filename = ntpath.basename(path)
+            self._execute_bg_task(self.glacier_instance.upload, vault_name=vault, \
+                                 file_name=path, arc_desc=filename, part_size=partsize, \
+                                  num_threads=4, upload_id=upload_id)
+            #response = self.glacier_instance.upload(vault, path, filename, partsize, 4, upload_id)
 
     def refresh_option_vault_details(self):
         """ Actions after selecting Vault Detail Option
@@ -819,6 +837,10 @@ class beeglacier(toga.App):
                          .order_by(Vault.updated_at.desc()).limit(1).execute()
         if vaults_db:
             self.vaults_table.data = json.loads(vaults_db[0].response)
+
+        uploads = Upload.select().where(Upload.response==None).execute()
+        for up in uploads:
+            self.glacier_instance.add_paused_uploads(up.vault, up.upload_id, up.filepath)
 
 def main():
     return beeglacier()
