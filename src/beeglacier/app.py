@@ -78,7 +78,7 @@ class beeglacier(toga.App):
         # In background task is necessary to do this
         glacier = self._connect_glacier()
 
-        onprogressid = self.progress_table.append({'description': 'Get Vaults', 'progress': 'on progress'})
+        # onprogressid = self.progress_table.append({'description': 'Get Vaults', 'progress': 'on progress'})
         self._update_control_label('Vaults_TopNav_RefreshVaults', 
                                    TEXT['BTN_REFRESH_VAULTS_LOADING'])
 
@@ -235,6 +235,14 @@ class beeglacier(toga.App):
         data = []
         if self.glacier_instance.current_uploads:
             for key, v in self.glacier_instance.current_uploads.items():
+                if v['status'] == 'FINISHED':
+                    # update database and remove from progress table
+                    Upload.update(response=v['last_response'], status=3) \
+                          .where(Upload.upload_id == key) \
+                          .execute()
+                    self.glacier_instance.remove_current_upload(key)
+                    continue
+
                 try:
                     porcentage = round(v['done']/v['total_parts']*100)
                     progress = f'{porcentage}%'
@@ -248,9 +256,23 @@ class beeglacier(toga.App):
                     'upload_id': key,
                     'path': v['path'],
                     'description': description, 
-                    'progress': progress}
-                )
+                    'progress': progress,
+                    'status': v['status']
+                })
+
         self.progress_table.data = data
+
+    def bg_abort_upload(self, vaultname, upload_id):
+        response = self.glacier_instance.abort_upload( 
+                vaultname=vaultname, 
+                upload_id=upload_id
+        )
+
+        if response:
+            Upload.update(response = json.dumps(response), status=2) \
+                  .where(Upload.upload_id == upload_id) \
+                  .execute()
+            self.glacier_instance.remove_current_upload(upload_id)
 
     def callback_row_selected(self, row):
         """ Callback when vault row is selected
@@ -500,22 +522,34 @@ class beeglacier(toga.App):
             self.refresh_option_vault_details()
 
     def on_pause_upload(self, button):
-        selected_upload = self.progress_table.selected_row
-        if 'upload_id' in selected_upload:    
-            self.glacier_instance.send_pause_upload_signal(selected_upload['upload_id'])
+        selected = self.progress_table.selected_row
+        if 'upload_id' in selected:
+            # send signal and update database
+            uid = selected['upload_id']
+            self.glacier_instance.send_pause_upload_signal(uid)
+            Upload.update(status=1).where(Upload.upload_id == uid).execute()
     
     def on_resume_upload(self, button):
-        selected_upload = self.progress_table.selected_row
-        if 'upload_id' in selected_upload: 
-            upload_id = selected_upload['upload_id']
-            vault = selected_upload['vault']
-            partsize = 4
-            path = selected_upload['path']
-            filename = ntpath.basename(path)
-            self._execute_bg_task(self.glacier_instance.upload, vault_name=vault, \
-                                 file_name=path, arc_desc=filename, part_size=partsize, \
-                                  num_threads=4, upload_id=upload_id)
-            #response = self.glacier_instance.upload(vault, path, filename, partsize, 4, upload_id)
+        selected = self.progress_table.selected_row
+        if 'upload_id' in selected: 
+            self._execute_bg_task(
+                self.glacier_instance.upload, 
+                vault=selected['vault'], 
+                path=selected['path'],
+                desc=ntpath.basename(selected['path']),
+                part_size=4,
+                num_threads=4, 
+                upload_id=selected['upload_id']
+            )
+    
+    def on_abort_upload(self, button):
+        selected = self.progress_table.selected_row
+        if 'upload_id' in selected: 
+            self._execute_bg_task(
+                self.bg_abort_upload, 
+                vaultname=selected['vault'], 
+                upload_id=selected['upload_id']
+            )
 
     def refresh_option_vault_details(self):
         """ Actions after selecting Vault Detail Option
@@ -752,6 +786,11 @@ class beeglacier(toga.App):
         self.onprogress_box.add(self.btn_resume_upload)
         global_controls.add('OnProgress_ResumeUpload', self.btn_resume_upload.id)
 
+        # OnProgress_AbortUpload: Button
+        self.btn_abort_upload = toga.Button('Abort', on_press=self.on_abort_upload)
+        self.onprogress_box.add(self.btn_abort_upload)
+        global_controls.add('OnProgress_AbortUpload', self.btn_abort_upload.id)
+
         # DownloadBox: Box (Inside Option Download)
         self.downloads_box = toga.Box(style=STYLES['OPTION_BOX'])
         global_controls.add('DownloadBox', self.downloads_box.id)
@@ -838,7 +877,7 @@ class beeglacier(toga.App):
         if vaults_db:
             self.vaults_table.data = json.loads(vaults_db[0].response)
 
-        uploads = Upload.select().where(Upload.response==None).execute()
+        uploads = Upload.select().where(Upload.status << [0,1]).execute()
         for up in uploads:
             self.glacier_instance.add_paused_uploads(up.vault, up.upload_id, up.filepath)
 

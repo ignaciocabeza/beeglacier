@@ -2,10 +2,12 @@ from peewee import (
     Model,
     CharField,
     TextField,
-    TimestampField
+    TimestampField,
+    IntegerField
 )
 
 from . import db
+from ..settings import STATUS_CHOICES
 
 class Upload(Model):
     upload_id = TextField(primary_key=True)
@@ -13,6 +15,7 @@ class Upload(Model):
     filepath = CharField()
     vault = CharField()
     response = TextField()
+    status = IntegerField(default=0, choices=STATUS_CHOICES)
     
     class Meta:
         database = db

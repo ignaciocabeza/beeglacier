@@ -16,6 +16,7 @@ HEADERS_ARCHIVES = [
 
 HEADERS_ON_PROGRESS = [
     {'name': 'description', 'label': 'Task Description'},
+    {'name': 'status', 'label': 'Status'},
     {'name': 'progress', 'label': 'Progress'}
 ]
 
@@ -31,4 +32,11 @@ HEADERS_DOWNLOADS_CURRENT = [
 HEADERS_JOBS = [
     {'name': 'description', 'label': 'Job Description'},
     {'name': 'status', 'label': 'Status'}
+]
+
+# Possible status of uploads
+STATUS_CHOICES = [
+    (0, 'Uploading'),
+    (1, 'Stopped'),
+    (2, 'Aborted')
 ]

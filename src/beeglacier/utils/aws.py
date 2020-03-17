@@ -34,7 +34,8 @@ class Glacier():
             'uploading': 10, 
             'status': 'UPLOADING', 'PAUSED'
             'total_parts':12, 
-            'done': 2
+            'done': 2,
+            'last_response': DICT Of LAST RESPONSE FROM AWS
         }
     }
     """
@@ -156,6 +157,22 @@ class Glacier():
         self.current_uploads = self.temp_current
         return response['uploadId']
 
+    def abort_upload(self, vaultname, upload_id):
+        response = self._get_client().abort_multipart_upload(
+            vaultName=vaultname,
+            uploadId=upload_id
+        )
+
+        # update in-memory uploads status
+        if response and \
+           response['ResponseMetadata']['HTTPStatusCode'] == 204:
+            # Aborted ok
+            to_update = {'status': 'ABORTED', 'last_response': response}
+            self._update_current_upload(upload_id, to_update)
+            return response
+        else:
+            return False
+        
     def upload(self, vault, path, desc, part_size, num_threads, upload_id):
         """
         params:
@@ -206,7 +223,8 @@ class Glacier():
                 'status': 'FINISHED', 
                 'total_parts': 1, 
                 'uploading': 0,
-                'done': 1
+                'done': 1,
+                'last_response': response
             }
             self._update_current_upload(upload_id, to_update)
 
@@ -344,7 +362,8 @@ class Glacier():
         )
         
         # update status
-        self._update_current_upload(upload_id, {'status': 'FINISHED'})
+        to_update = {'last_response': response, 'status': 'FINISHED'}
+        self._update_current_upload(upload_id, to_update)
 
         # close and return response
         file_to_upload.close()
@@ -469,6 +488,12 @@ class Glacier():
             'uploading': 0, 
             'done': 0
         }
+
+        for callback in self._current_uploads_observers:
+            callback()
+
+    def remove_current_upload(self, upload_id):
+        del self._current_uploads[upload_id]
 
         for callback in self._current_uploads_observers:
             callback()
