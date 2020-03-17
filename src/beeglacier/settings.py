@@ -38,5 +38,7 @@ HEADERS_JOBS = [
 STATUS_CHOICES = [
     (0, 'Uploading'),
     (1, 'Stopped'),
-    (2, 'Aborted')
+    (2, 'Aborted'),
+    (3, 'Completed'),
+    (4, 'Error')
 ]

@@ -40,10 +40,10 @@ briefcase dev
 
 ## To-do
 
-- [x] [Start Inventory Job] Make async
-- [x] [Check Inventory Job] Make async
 - [ ] Only allow one inventory retrieval job at the same time for each vault
 - [ ] [Upload Archive] Stop, Cancel and Resume Uploads (WIP)
+- [X] [Upload Archive] Avoid try upload part when upload is aborted (WIP)
+- [ ] [Upload Archive] Delete Upload When ResourceNotFound Exception is raised (Status: Error)
 - [ ] [Upload Archive] Show list of on progress upload when response of DB is null (WIP)
 - [ ] [Delete Archive] Add Delete information to archives data table
 - [ ] [Download Archive] Async Download

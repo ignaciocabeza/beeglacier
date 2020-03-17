@@ -233,6 +233,7 @@ class beeglacier(toga.App):
     def bg_update_progress_uploads(self, arg2):
         """ update progress_table """
         data = []
+        to_remove = []
         if self.glacier_instance.current_uploads:
             for key, v in self.glacier_instance.current_uploads.items():
                 if v['status'] == 'FINISHED':
@@ -240,7 +241,7 @@ class beeglacier(toga.App):
                     Upload.update(response=v['last_response'], status=3) \
                           .where(Upload.upload_id == key) \
                           .execute()
-                    self.glacier_instance.remove_current_upload(key)
+                    to_remove.append(key)
                     continue
 
                 try:
@@ -262,6 +263,10 @@ class beeglacier(toga.App):
 
         self.progress_table.data = data
 
+        # remove uploads info outside the loop
+        for upid in to_remove:
+            self.glacier_instance.remove_current_upload(upid)
+
     def bg_abort_upload(self, vaultname, upload_id):
         response = self.glacier_instance.abort_upload( 
                 vaultname=vaultname, 
@@ -273,6 +278,23 @@ class beeglacier(toga.App):
                   .where(Upload.upload_id == upload_id) \
                   .execute()
             self.glacier_instance.remove_current_upload(upload_id)
+
+    def bg_resume_upload(self, vault, path, upload_id):
+        
+        desc=ntpath.basename(path)
+        try:
+            response = self.glacier_instance.upload( 
+                        vault=vault, 
+                        path=path,
+                        desc=desc,
+                        part_size=4,
+                        num_threads=4, 
+                        upload_id=upload_id
+            )
+        except self.glacier_instance._get_client().exceptions.ResourceNotFoundException:
+            # TODO: delete upload. Resource not found
+            print("Controlled Exception")
+        
 
     def callback_row_selected(self, row):
         """ Callback when vault row is selected
@@ -533,12 +555,9 @@ class beeglacier(toga.App):
         selected = self.progress_table.selected_row
         if 'upload_id' in selected: 
             self._execute_bg_task(
-                self.glacier_instance.upload, 
+                self.bg_resume_upload,
                 vault=selected['vault'], 
                 path=selected['path'],
-                desc=ntpath.basename(selected['path']),
-                part_size=4,
-                num_threads=4, 
                 upload_id=selected['upload_id']
             )
     

@@ -166,7 +166,7 @@ class Glacier():
         # update in-memory uploads status
         if response and \
            response['ResponseMetadata']['HTTPStatusCode'] == 204:
-            # Aborted ok
+            # Aborted OK
             to_update = {'status': 'ABORTED', 'last_response': response}
             self._update_current_upload(upload_id, to_update)
             return response
@@ -373,9 +373,8 @@ class Glacier():
                     num_parts):
 
         part_num = byte_pos // part_size
-
-        if self._current_uploads[upload_id]['status'] == 'PAUSING':
-            print ('part_paused')
+        
+        if self._current_uploads[upload_id]['status'] in ['PAUSING', 'ABORTED']:
             sys.exit(1)
 
         fileblock.acquire()
@@ -395,6 +394,9 @@ class Glacier():
             part_num + 1, num_parts, percentage))
 
         for i in range(MAX_ATTEMPTS):
+            if self._current_uploads[upload_id]['status'] in ['PAUSING', 'ABORTED']:
+                continue
+
             try:
                 response = self.glacier.upload_multipart_part(
                     vaultName=vault_name, uploadId=upload_id,
