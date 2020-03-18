@@ -236,13 +236,34 @@ class beeglacier(toga.App):
         to_remove = []
         if self.glacier_instance.current_uploads:
             for key, v in self.glacier_instance.current_uploads.items():
+                # TODO: Optimize this mess
                 if v['status'] == 'FINISHED':
+                    parts_done = v['done']
                     # update database and remove from progress table
-                    Upload.update(response=v['last_response'], status=3) \
+                    Upload.update(
+                            response=v['last_response'], 
+                            status=3,
+                            parts_done=parts_done) \
                           .where(Upload.upload_id == key) \
                           .execute()
                     to_remove.append(key)
                     continue
+
+                if v['status'] == 'PAUSED':
+                    uploaddb = Upload.get_or_none(Upload.upload_id == key)
+                    if uploaddb and uploaddb.parts_done != v['done']:
+                        Upload.update( 
+                            parts_done=v['done']) \
+                          .where(Upload.upload_id == key) \
+                          .execute()
+
+                if v['status'] == 'UPLOADING':
+                    uploaddb = Upload.get_or_none(Upload.upload_id == key)
+                    if uploaddb and uploaddb.parts != v['total_parts']:
+                        Upload.update( 
+                            parts=v['total_parts']) \
+                          .where(Upload.upload_id == key) \
+                          .execute()
 
                 try:
                     porcentage = round(v['done']/v['total_parts']*100)
@@ -274,7 +295,9 @@ class beeglacier(toga.App):
         )
 
         if response:
-            Upload.update(response = json.dumps(response), status=2) \
+            Upload.update(
+                    response = json.dumps(response), 
+                    status=2) \
                   .where(Upload.upload_id == upload_id) \
                   .execute()
             self.glacier_instance.remove_current_upload(upload_id)
@@ -291,10 +314,19 @@ class beeglacier(toga.App):
                         num_threads=4, 
                         upload_id=upload_id
             )
-        except self.glacier_instance._get_client().exceptions.ResourceNotFoundException:
-            # TODO: delete upload. Resource not found
-            print("Controlled Exception")
-        
+        except self.glacier_instance._get_client() \
+                   .exceptions.ResourceNotFoundException:
+            # Update upload to Error state and remove from currents
+            Upload.update(response = 'ResourceNotFound', status=4) \
+                  .where(Upload.upload_id == upload_id) \
+                  .execute()
+            self.glacier_instance.remove_current_upload(upload_id)
+        except FileNotFoundError:
+             # Update upload to Error state and remove from currents
+            Upload.update(response = 'FileNotFoundError', status=4) \
+                  .where(Upload.upload_id == upload_id) \
+                  .execute()
+            self.glacier_instance.remove_current_upload(upload_id)
 
     def callback_row_selected(self, row):
         """ Callback when vault row is selected
@@ -898,7 +930,13 @@ class beeglacier(toga.App):
 
         uploads = Upload.select().where(Upload.status << [0,1]).execute()
         for up in uploads:
-            self.glacier_instance.add_paused_uploads(up.vault, up.upload_id, up.filepath)
+            self.glacier_instance.add_paused_uploads(
+                up.vault, 
+                up.upload_id, 
+                up.filepath,
+                up.parts,
+                up.parts_done
+            )
 
 def main():
     return beeglacier()

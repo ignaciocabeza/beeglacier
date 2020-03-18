@@ -16,6 +16,8 @@ class Upload(Model):
     vault = CharField()
     response = TextField()
     status = IntegerField(default=0, choices=STATUS_CHOICES)
+    parts = IntegerField(default=0)
+    parts_done = IntegerField(default=0)
     
     class Meta:
         database = db

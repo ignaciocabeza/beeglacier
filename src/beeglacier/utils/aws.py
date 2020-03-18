@@ -203,7 +203,6 @@ class Glacier():
             # path is a file
             file_to_upload = open(path, mode='rb')
 
-        
         part_size = part_size * 1024 * 1024
         file_size = file_to_upload.seek(0, 2)
 
@@ -316,11 +315,6 @@ class Glacier():
             done, not_done = wait(futures_list, return_when=FIRST_EXCEPTION)
             
             if len(not_done) > 0:
-                
-                # If pausing signal then change status to PAUSED
-                if self._current_uploads[upload_id]['status'] == 'PAUSING':
-                    to_update = {'status': 'PAUSED'}
-                    self._update_current_upload(upload_id, to_update)
 
                 # an exception occured
                 for future in not_done:
@@ -394,6 +388,7 @@ class Glacier():
             part_num + 1, num_parts, percentage))
 
         for i in range(MAX_ATTEMPTS):
+
             if self._current_uploads[upload_id]['status'] in ['PAUSING', 'ABORTED']:
                 continue
 
@@ -422,6 +417,15 @@ class Glacier():
         self.current_uploads = self.temp_current
         
         del part
+
+        # If pausing signal then change status to PAUSED if is the last
+        # one in finishing upload
+        current_status = self._current_uploads[upload_id]['status']
+        uploading = self._current_uploads[upload_id]['uploading']
+        if current_status == 'PAUSING' and not uploading:
+            to_update = {'status': 'PAUSED'}
+            self._update_current_upload(upload_id, to_update)
+
         return checksum
 
     def calculate_tree_hash(self, part, part_size):
@@ -478,7 +482,7 @@ class Glacier():
         for callback in self._current_uploads_observers:
             callback()
 
-    def add_paused_uploads(self, vault, upload_id, path):
+    def add_paused_uploads(self, vault, upload_id, path, parts, parts_done):
         filename = ntpath.basename(path)
         self._current_uploads[upload_id] = {
             'vault': vault,
@@ -486,9 +490,9 @@ class Glacier():
             'path': path,
             'description': filename,
             'status': 'PAUSED',
-            'total_parts': 0, 
+            'total_parts': parts, 
             'uploading': 0, 
-            'done': 0
+            'done': parts_done
         }
 
         for callback in self._current_uploads_observers:
