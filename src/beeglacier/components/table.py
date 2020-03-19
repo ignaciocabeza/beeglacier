@@ -12,6 +12,10 @@ class Table(Base):
 
     def __init__(self, **kwargs):
         super().__init__()
+        style = {
+            'height': 300,
+            'direction': COLUMN
+        }
 
         # Observable for selected Row
         self._selected_row = None
@@ -30,8 +34,11 @@ class Table(Base):
             # ]
             self._headers = kwargs['headers']
 
+        if 'height' in kwargs.keys():
+            style['height'] = kwargs['height']
+
         # create Toga Table
-        table_style = Pack(height=300,direction=COLUMN)
+        table_style = Pack(**style)
         self._toga_table =  toga.Table(self._get_header_labels(), 
                                        data=[], 
                                        style=table_style, 

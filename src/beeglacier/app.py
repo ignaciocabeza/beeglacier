@@ -375,9 +375,10 @@ class beeglacier(toga.App):
 
     def on_btn_download_archive(self, button):
         #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
-        archive = self.get_archive_from_data(self.obs_selected_archive.data)
-        file_path_temp = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data + '.downloading'
-        file_path_final = file_path = '/users/ignaciocabeza/downloads/' + self.obs_selected_archive.data
+        archive = self.archives_table.selected_row
+        
+        file_path_final = '/users/ignaciocabeza/downloads/' + archive['archivedescription'] 
+        file_path_temp = os.path.join(file_path_final, '.downloading')
 
         vault = self.vaults_table.selected_row
         vaultname = vault['vaultname']
@@ -393,7 +394,7 @@ class beeglacier(toga.App):
                 
                 job_description = self.glacier_instance.describe_job(vaultname, job_id)
                 print (job_description)
-                if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
+                if job_description['Completed'] and job_description['StatusCode'] == 'Succeded':
                     archive_checksum = job_description['ArchiveSHA256TreeHash']
                     
                     # size of the file
@@ -437,7 +438,6 @@ class beeglacier(toga.App):
                                 f.write(body)
                                 f.close()
 
-                    import os
                     os.rename(file_path_temp, file_path_final)
                     # check archive checksum    
                     #downloaded_checksum = self.glacier_instance.calculate_tree_hash(open(file_path_final,'r').read(), size)
@@ -447,7 +447,7 @@ class beeglacier(toga.App):
                     #    print('ok')
                         
     def on_btn_request_download_job(self, button):
-        archive = self.get_archive_from_data(self.obs_selected_archive.data)
+        archive = self.archives_table.selected_row
         if archive:
             archive_id = archive['archiveid']
 
@@ -456,12 +456,12 @@ class beeglacier(toga.App):
             
             # TO-DO: Create confirm dialog
             response = self.glacier_instance.initiate_archive_retrieval(vaultname, archive_id)
-            jobdb = Job.insert({
-                'vaultname': vaultname,
-                'id': response.id,
-                'job_type': 'archive',
-                'archiveid': archive_id
-            }).execute()
+            jobdb = Job.insert(
+                id=vaultname,
+                job_id=response.id,
+                job_type='archive',
+                archiveid=archive_id
+            ).execute()
 
     def on_delete_vault(self, button):
 
@@ -570,7 +570,7 @@ class beeglacier(toga.App):
         option_details = getattr(self, 'vault_box', None)
         option_uploads = getattr(self, 'onprogress_box', None)
         option_downloads = getattr(self, 'downloads_box', None)
-        option_jobs = getattr(self, 'jobs_box', None)
+        # option_jobs = getattr(self, 'jobs_box', None)
         option_settings = getattr(self, 'credentials_box', None)
         if option == option_details:
             self.refresh_option_vault_details()
@@ -847,24 +847,24 @@ class beeglacier(toga.App):
         global_controls.add('DownloadBox', self.downloads_box.id)
 
         # DownloadBox > TableJobs
-        self.downloadjob_table = Table(headers=HEADERS_DOWNLOADS_JOBS)
+        self.downloadjob_table = Table(headers=HEADERS_DOWNLOADS_JOBS, height=200)
         self.downloads_box.add(self.downloadjob_table.getbox())
         global_controls.add_from_controls(self.downloadjob_table.getcontrols(),'DownloadBox_TableJobs_')
 
         # DownloadBox > TableCurrent
-        self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT)
+        self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT, height=200)
         self.downloads_box.add(self.current_downloads_table.getbox())
         global_controls.add_from_controls(self.current_downloads_table.getcontrols(),'DownloadBox_TableCurrent_')
 
         # JobsBox: Box (Inside Option Download)
-        self.jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
-        global_controls.add('JobsBox', self.jobs_box.id)
+        # self.jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
+        # global_controls.add('JobsBox', self.jobs_box.id)
 
         # Main -> OptionContainer: OptionContainer
         container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
         container.add('Vaults', self.app_box)
         container.add('Vault Detail', self.vault_box)
-        container.add('Jobs', self.jobs_box)
+        # container.add('Jobs', self.jobs_box)
         container.add('Uploads', self.onprogress_box)
         container.add('Downloads', self.downloads_box)
         container.add('Credentials', self.credentials_box)

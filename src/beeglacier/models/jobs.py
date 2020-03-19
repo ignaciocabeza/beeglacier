@@ -13,11 +13,12 @@ from . import db, get_timestamp
 class Job(Model):
     id = CharField()
     job_id = CharField()
-    archiveid = TextField(default='')
     job_type = CharField()
-    response = TextField()
     created_at = TimestampField(default=get_timestamp)
+    updated_at = TimestampField()
     done = IntegerField(default=0)
+    response = TextField()
+    archiveid = TextField(default='')
     error = IntegerField(default=0)
 
     class Meta:
