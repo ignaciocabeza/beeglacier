@@ -12,6 +12,7 @@ HEADERS = [
 HEADERS_ARCHIVES = [
     {'name': 'archivedescription', 'label': 'Filename'},
     {'name': 'size', 'label': 'Size (MB)'},
+    {'name': 'deletion_in_progress', 'label': 'Deleting?'},
 ]
 
 HEADERS_ON_PROGRESS = [

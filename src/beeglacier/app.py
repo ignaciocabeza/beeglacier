@@ -36,6 +36,7 @@ from .utils.aws import Glacier
 from .utils.strings import TEXT
 from .utils.styles import STYLES
 from .models.jobs import Job
+from .extra_impl.OptionContainer import option_enabled
 
 global_controls = Controls()
 
@@ -162,17 +163,23 @@ class beeglacier(toga.App):
         if 'vaultname' not in kwargs or 'archiveid' not in kwargs: 
             return 
         
-        db = DB(DB_PATH)
         vaultname = kwargs['vaultname']
         archiveid = kwargs['archiveid']
 
         #delete file
         response = self.glacier_instance.delete_archive(vaultname, archiveid)
-        DeletedArchive.insert({
-            'vaultname': vaultname,
-            'archiveid': archiveid,
-            'response': json.dumps(response)
-        }).execute()
+        
+        if 'ResponseMetadata' in response and \
+           'HTTPStatusCode' in response['ResponseMetadata'] and \
+           response['ResponseMetadata']['HTTPStatusCode'] == 204:
+            # file was deleted succesfully
+            DeletedArchive.insert({
+                'vaultname': vaultname,
+                'archiveid': archiveid,
+                'response': json.dumps(response)
+            }).execute()
+    
+        self.refresh_option_vault_details()
 
     def bg_start_inv_job(self, vaultname):
         """ Start an inventory job and save response to db
@@ -344,6 +351,7 @@ class beeglacier(toga.App):
         self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
         delete_btn = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
         delete_btn.enabled = True
+        option_enabled(self.container, 1, True)
 
     def callback_row_selected_archive(self, archive):
         if not archive:
@@ -610,6 +618,14 @@ class beeglacier(toga.App):
                     (Job.done == 0)
                   ).order_by(Job.created_at.desc()).execute()
 
+        # retrieve deleted archives to show info that's
+        # is in process of deletion if it's present in 
+        # last vault job detail
+        deleted_archives = DeletedArchive.select(DeletedArchive.archiveid) \
+                                         .where(DeletedArchive.vaultname == selected_vault_name) \
+                                         .execute()
+        deleted_ids = [delar.archiveid for delar in deleted_archives]
+
         text_pend_jobs = f'{TEXT["PENDING_INVENTORY_JOBS"]} {len(jobs)}'
         self.vault_pending_jobs.text = text_pend_jobs
         if len(jobs):
@@ -632,6 +648,11 @@ class beeglacier(toga.App):
             for archive in list_archives:
                 new_row = { key.lower():value for (key,value) in archive.items() }
                 new_row['size'] = round(new_row['size']/1024/1024,2)
+                new_row['deletion_in_progress'] = ''
+                
+                if archive['ArchiveId'] in deleted_ids:
+                    new_row['deletion_in_progress'] = 'Yes'
+
                 data.append(new_row)
             
             self.archives_table.data = data
@@ -861,16 +882,21 @@ class beeglacier(toga.App):
         # global_controls.add('JobsBox', self.jobs_box.id)
 
         # Main -> OptionContainer: OptionContainer
-        container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
-        container.add('Vaults', self.app_box)
-        container.add('Vault Detail', self.vault_box)
+        self.container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
+        self.container.add('Vaults', self.app_box)
+        self.container.add('Vault Detail', self.vault_box)
         # container.add('Jobs', self.jobs_box)
-        container.add('Uploads', self.onprogress_box)
-        container.add('Downloads', self.downloads_box)
-        container.add('Credentials', self.credentials_box)
+        self.container.add('Uploads', self.onprogress_box)
+        self.container.add('Downloads', self.downloads_box)
+        self.container.add('Credentials', self.credentials_box)
         
-        self.main_box.add(container)
-        global_controls.add('Main_OptionContainer', container.id)
+        self.main_box.add(self.container)
+        
+        # disable vaults detail option
+        option_enabled(self.container, 1, False)
+
+
+        global_controls.add('Main_OptionContainer', self.container.id)
         
     def launch_bg_update_onprogress(self):
         """ launch a bg task for refresh UI. This is called by an
