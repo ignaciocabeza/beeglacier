@@ -40,8 +40,8 @@ briefcase dev
 
 ## To-do
 
-- [ ] Only allow one inventory retrieval job at the same time for each vault
-- [ ] [Delete Archive] Add Delete information to archives data table
+- [x] Only allow one inventory retrieval job at the same time for each vault
+- [x] [Delete Archive] Add Delete information to archives data table
 - [ ] [Download Archive] Async Download
 - [ ] [Download Archive] Progress Bar when donwload
 - [ ] [Download Archive] Select Destination folder when download
@@ -50,7 +50,6 @@ briefcase dev
 - [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
-- [x] [System Wide] Use ORM for Sqlite3
 - [ ] [System Wide] Flake8
 
 ## Beeware

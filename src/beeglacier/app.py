@@ -615,7 +615,8 @@ class beeglacier(toga.App):
 
         jobs = Job.select().where(
                     (Job.id == selected_vault_name) &
-                    (Job.done == 0)
+                    (Job.done == 0) & 
+                    (Job.job_type == 'inventory')
                   ).order_by(Job.created_at.desc()).execute()
 
         # retrieve deleted archives to show info that's
