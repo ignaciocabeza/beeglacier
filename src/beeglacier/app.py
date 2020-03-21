@@ -23,6 +23,7 @@ from .settings import (
     HEADERS_DOWNLOADS_CURRENT,
     HEADERS_JOBS
 )
+from .models import get_timestamp
 from .models.accounts import Account
 from .models.deleted_archives import DeletedArchive
 from .models.jobs import Job
@@ -44,9 +45,6 @@ class beeglacier(toga.App):
     vaults_table = None
     
     bgtasks = list()
-
-    # observables datas
-    obs_data_archives = None
 
     def _connect_glacier(self):
         aid, akey, skey, reg = Account.getaccount()
@@ -197,36 +195,39 @@ class beeglacier(toga.App):
         for job in jobs:
             job_id = job.job_id
             job_desc = self.glacier_instance.describe_job(vaultname, job_id)
-
+            
             if not job_desc:
                 # not controlled situation
                 raise Exception('Something is wrong')
 
-            if not job_desc['Completed']:
+            if not job_desc['Completed'] and job_desc['StatusCode'] == 'InProgress':
+                jobdb = Job.update(
+                        response = json.dumps(job_desc),
+                        updated_at = get_timestamp(),
+                    ).where(Job.job_id == job_id).execute() 
                 print (f"Job {job_id} is not ready to download")
             
-            if job_desc['StatusCode'] == 'Succeeded':
+            if job_desc['Completed'] and job_desc['StatusCode'] == 'ResourceNotFound':
+                # Job expired, mark as done and error.
+                jobdb = Job.update(
+                        response = json.dumps(job_desc),
+                        done = 1,
+                        error = 1,
+                        updated_at = get_timestamp()
+                    ).where(Job.job_id == job_id).execute() 
+                print (f"Job {job_id} is expired")
+
+            if job_desc['Completed'] and job_desc['StatusCode'] == 'Succeeded':
                 # donwload job output
                 r = self.glacier_instance.get_job_output(vaultname, job_id)
                 if r['status'] == 200:
                     job_dict = json.loads(r['body'].read().decode())
-
                     jobdb = Job.update(
                             response = json.dumps(job_dict),
-                            done = 0
-                        ).where(Job.id == job_id).execute()
-
-            elif job_desc['StatusCode'] == 'ResourceNotFound':
-                # wrong ...
-                pass 
-            else:
-                # job probably is expired (expires after 24 h I think)
-                # Update database with Expired data 
-                jobdb = Job.update(
-                        response = json.dumps(job_desc),
-                        done = 1,
-                        error = 1
-                    ).where(Job.id == job_id).execute()
+                            done = 1,
+                            updated_at = get_timestamp()
+                        ).where(Job.job_id == job_id).execute()
+                print (f"Job {job_id} is ready to download")
 
         self.refresh_option_vault_details()
 
@@ -362,16 +363,6 @@ class beeglacier(toga.App):
         # called after pressed save button
         values = self.account_form.get_values()
         Account.saveaccount(values)
-
-    def obs_data_table_archives(self, test):
-        self.archives_table.data = self.obs_data_archives.data
-
-    def get_archive_from_data(self, archivename):
-        target_archive = list( filter(lambda x: x['archivedescription']==self.obs_selected_archive.data, self.obs_data_archives.data) )
-        if target_archive:
-            return target_archive[0]
-        else:
-            return None
 
     def on_btn_download_archive(self, button):
         #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
@@ -610,9 +601,10 @@ class beeglacier(toga.App):
         if not self.vaults_table.selected_row:
             return None
 
+        btn_start_inv_job = global_controls.get_control_by_name('VaultDetail_StartInventoryJobButton')
+        btn_check_inv_job = global_controls.get_control_by_name('VaultDetail_CheckJobsButton')
         selected_vault_name = self.vaults_table.selected_row['vaultname']
 
-        self.obs_data_archives.data = []
         jobs = Job.select().where(
                     (Job.id == selected_vault_name) &
                     (Job.done == 0)
@@ -620,14 +612,19 @@ class beeglacier(toga.App):
 
         text_pend_jobs = f'{TEXT["PENDING_INVENTORY_JOBS"]} {len(jobs)}'
         self.vault_pending_jobs.text = text_pend_jobs
+        if len(jobs):
+            btn_start_inv_job.enabled = False
+        else:
+            btn_start_inv_job.enabled = True
+        btn_check_inv_job.enabled = not btn_start_inv_job.enabled
 
         done_jobs = Job.select().where(
                     (Job.id == selected_vault_name) &
                     (Job.done == 1) &
                     (Job.error == 0)
                   ).order_by(Job.created_at.desc()).execute()
-
         
+        print(len(done_jobs))
         if len(done_jobs):
             last_job_done = json.loads(done_jobs[0].response)
             list_archives = last_job_done['ArchiveList']
@@ -636,8 +633,10 @@ class beeglacier(toga.App):
                 new_row = { key.lower():value for (key,value) in archive.items() }
                 new_row['size'] = round(new_row['size']/1024/1024,2)
                 data.append(new_row)
-
-            self.obs_data_archives.data = data
+            
+            self.archives_table.data = data
+        else:
+            self.archives_table.data = []
 
     def create_controls(self):
 
@@ -742,7 +741,8 @@ class beeglacier(toga.App):
 
         # VaultDetail -> StartInventoryJobButton: Button
         btn_start_inv_job = toga.Button(TEXT['BTN_START_INV_JOB'], 
-                                        on_press=self.on_btn_start_inv_job)
+                                        on_press=self.on_btn_start_inv_job,
+                                        enabled=False)
         self.bottom_nav_vault.add(btn_start_inv_job)
         global_controls.add('VaultDetail_StartInventoryJobButton', 
                             btn_start_inv_job.id)
@@ -915,11 +915,6 @@ class beeglacier(toga.App):
         # Show Main Window
         self.main_window.content = self.main_box
         self.main_window.show()
-
-        # ---
-        # create observable for storing list of vaults
-        self.obs_data_archives = ObsData()
-        self.obs_data_archives.bind_to(self.obs_data_table_archives)
 
         # get last retrieve of vaults from database
         vaults_db = Vault.select() \
