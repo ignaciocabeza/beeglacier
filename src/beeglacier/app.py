@@ -47,6 +47,8 @@ class beeglacier(toga.App):
     
     bgtasks = list()
 
+    _current_downloads = []
+
     def _connect_glacier(self):
         aid, akey, skey, reg = Account.getaccount()
         if not self.glacier_instance:
@@ -365,7 +367,11 @@ class beeglacier(toga.App):
                 (Job.done == 0)
             ).execute()
         text = f'{TEXT["PENDING_ARCHIVE_JOBS"]}{len(jobs)}'
-        self._update_control_label('VaultDetail_PendingDownload', text)    
+        self._update_control_label('VaultDetail_PendingDownload', text)
+
+        # enable or diasable dwlbtn
+        dwlbtn = global_controls.get_control_by_name('VaultDetail_DownloadArchive')
+        dwlbtn.enabled = len(jobs) > 0
 
     def callback_create_account(self, button):
         # called after pressed save button
@@ -390,61 +396,78 @@ class beeglacier(toga.App):
 
             if jobs:
                 job_id = jobs[0].id
+
+    def on_download_archive_from_job(self, button):
+        job_selected = self.downloadjob_table.selected_row
+        
+        job_id = job_selected['job_id']
+        file_path_final = '/users/ignaciocabeza/downloads/' + job_selected['description'] 
+        file_path_temp = os.path.join('/users/ignaciocabeza/downloads/', file_path_final + '.downloading')
+        vaultname = job_selected['vaultname']
+
+        self._execute_bg_task(
+            self.bg_download, 
+            vaultname=vaultname, 
+            job_id=job_id,
+            file_path_temp=file_path_temp,
+            file_path_final=file_path_final,
+        )
+
+    def bg_download(self, vaultname, job_id, file_path_temp, file_path_final):
+        job_description = self.glacier_instance.describe_job(vaultname, job_id)
+
+        if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
+            archive_checksum = job_description['ArchiveSHA256TreeHash']
+            
+            # size of the file
+            size = job_description['ArchiveSizeInBytes']
+            #print (size)
+            # 4mb parts
+            part_size = 1024 * 1024 * 1
+
+            # amount of parts
+            parts = int(size) // part_size + 1
+            print(parts)
+            # requests parts
+            for part_index in range(parts):
+                start_range= part_size * part_index
+
+                if size - part_size * part_index  < part_size:
+                    #last part
+                    end_range = size - 1
+                else:
+                    end_range = part_size * part_index + part_size - 1
                 
-                job_description = self.glacier_instance.describe_job(vaultname, job_id)
-                print (job_description)
-                if job_description['Completed'] and job_description['StatusCode'] == 'Succeded':
-                    archive_checksum = job_description['ArchiveSHA256TreeHash']
-                    
-                    # size of the file
-                    size = job_description['ArchiveSizeInBytes']
-                    #print (size)
-                    # 4mb parts
-                    part_size = 1024 * 1024 * 1
+                param_range = 'bytes=%s-%s' %(str(start_range),str(end_range))
+                #print(param_range)
+                job_result = self.glacier_instance.get_job_output(vaultname, job_id, range=param_range)
+                #print (job_result)
+                if job_result['status'] == 206:
+                    body = job_result['body'].read()
+                    response_checksum = job_result['checksum']
+                    #print(response_checksum)
 
-                    # amount of parts
-                    parts = int(size) // part_size + 1
-
-                    # requests parts
-                    for part_index in range(parts):
-                        start_range= part_size * part_index
-
-                        if size - part_size * part_index  < part_size:
-                            #last part
-                            end_range = size - 1
-                        else:
-                            end_range = part_size * part_index + part_size - 1
-                        
-                        param_range = 'bytes=%s-%s' %(str(start_range),str(end_range))
-                        #print(param_range)
-                        job_result = self.glacier_instance.get_job_output(vaultname, job_id, range=param_range)
-                        #print (job_result)
-                        if job_result['status'] == 206:
-                            body = job_result['body'].read()
-                            response_checksum = job_result['checksum']
-                            #print(response_checksum)
-
-                            fpart = tempfile.TemporaryFile()
-                            fpart.write(body)
-                            downloaded_checksum = self.glacier_instance.calculate_tree_hash(body, part_size)
-                            fpart.close()
-                            #print(downloaded_checksum)
-                            
-                            if response_checksum==downloaded_checksum:
-                                #checksum is ok - write
-                                print(part_index)
-                                f = open(file_path_temp,'ab+')
-                                f.write(body)
-                                f.close()
-
-                    os.rename(file_path_temp, file_path_final)
-                    # check archive checksum    
-                    #downloaded_checksum = self.glacier_instance.calculate_tree_hash(open(file_path_final,'r').read(), size)
-                    #print(archive_checksum)
+                    fpart = tempfile.TemporaryFile()
+                    fpart.write(body)
+                    downloaded_checksum = self.glacier_instance.calculate_tree_hash(body, part_size)
+                    fpart.close()
                     #print(downloaded_checksum)
-                    #if archive_checksum==downloaded_checksum:
-                    #    print('ok')
-                        
+                    
+                    if response_checksum==downloaded_checksum:
+                        #checksum is ok - write
+                        print(part_index)
+                        f = open(file_path_temp,'ab+')
+                        f.write(body)
+                        f.close()
+
+            os.rename(file_path_temp, file_path_final)
+            # check archive checksum    
+            #downloaded_checksum = self.glacier_instance.calculate_tree_hash(open(file_path_final,'r').read(), size)
+            #print(archive_checksum)
+            #print(downloaded_checksum)
+            #if archive_checksum==downloaded_checksum:
+            #    print('ok')
+    
     def on_btn_request_download_job(self, button):
         archive = self.archives_table.selected_row
         if archive:
@@ -459,7 +482,8 @@ class beeglacier(toga.App):
                 id=vaultname,
                 job_id=response.id,
                 job_type='archive',
-                archiveid=archive_id
+                archiveid=archive_id,
+                description=archive['archivedescription']
             ).execute()
 
     def on_delete_vault(self, button):
@@ -573,6 +597,8 @@ class beeglacier(toga.App):
         option_settings = getattr(self, 'credentials_box', None)
         if option == option_details:
             self.refresh_option_vault_details()
+        if option == option_downloads:
+            self.refresh_option_downloads()
 
     def on_pause_upload(self, button):
         selected = self.progress_table.selected_row
@@ -600,6 +626,23 @@ class beeglacier(toga.App):
                 vaultname=selected['vault'], 
                 upload_id=selected['upload_id']
             )
+
+    def refresh_option_downloads(self):
+        jobs = Job.select().where(
+                    (Job.done == 0) &
+                    (Job.error == 0) & 
+                    (Job.job_type == 'archive')
+                  ).order_by(Job.created_at.desc()).execute()
+        
+        data_jobs = []
+        for job in jobs:
+            data_jobs.append({
+                'description': job.description,
+                'vaultname': job.id,
+                'job_id': job.job_id
+            })
+
+        self.downloadjob_table.data = data_jobs
 
     def refresh_option_vault_details(self):
         """ Actions after selecting Vault Detail Option
@@ -801,12 +844,12 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
         # VaultDetail_DownloadArchive: Button
-        self.btn_download_archive = toga.Button('Download', on_press=self.on_btn_download_archive)
+        self.btn_download_archive = toga.Button('Download', enabled=False, on_press=self.on_btn_download_archive)
         self.archive_download_box.add(self.btn_download_archive)
         global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
 
         # VaultDetail_DeleteArchive: Button
-        self.btn_delete_archive = toga.Button('Delete', on_press=self.on_delete_archive)
+        self.btn_delete_archive = toga.Button('Delete', enabled=False, on_press=self.on_delete_archive)
         self.archive_download_box.add(self.btn_delete_archive)
         global_controls.add('VaultDetail_DeleteArchive', self.btn_delete_archive.id)
 
@@ -872,6 +915,12 @@ class beeglacier(toga.App):
         self.downloadjob_table = Table(headers=HEADERS_DOWNLOADS_JOBS, height=200)
         self.downloads_box.add(self.downloadjob_table.getbox())
         global_controls.add_from_controls(self.downloadjob_table.getcontrols(),'DownloadBox_TableJobs_')
+
+        # OnProgress_ResumeUpload: Button
+        # TODO: fix on_press: is wrong...
+        self.btn_download_rom_job = toga.Button('Download archive from Job', on_press=self.on_download_archive_from_job)
+        self.downloads_box.add(self.btn_download_rom_job)
+        global_controls.add('DownloadBox_BtnDownload', self.btn_download_rom_job.id)
 
         # DownloadBox > TableCurrent
         self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT, height=200)

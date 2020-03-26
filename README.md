@@ -36,13 +36,13 @@ briefcase dev
 - List Archives of a Vault
 - Start an inventory job to request the list of archives of a Vault
 - Download an archive (wip)
-- Delete Archive (wip)
+- Delete Archive
 
 ## To-do
 
 - [x] Only allow one inventory retrieval job at the same time for each vault
 - [x] [Delete Archive] Add Delete information to archives data table
-- [ ] [Download Archive] Async Download
+- [ ] [Download Archive] Async Download (save state in memory and refresh table)
 - [ ] [Download Archive] Progress Bar when donwload
 - [ ] [Download Archive] Select Destination folder when download
 - [ ] [Download Archive] Avoid to create a new download job if is already one job with status pending

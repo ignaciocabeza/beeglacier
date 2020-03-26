@@ -23,6 +23,7 @@ HEADERS_ON_PROGRESS = [
 
 HEADERS_DOWNLOADS_JOBS = [
     {'name': 'description', 'label': 'Job Description'},
+    {'name': 'vaultname', 'label': 'Vault'},
 ]
 
 HEADERS_DOWNLOADS_CURRENT = [

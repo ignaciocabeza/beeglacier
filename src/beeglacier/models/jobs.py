@@ -20,6 +20,7 @@ class Job(Model):
     response = TextField()
     archiveid = TextField(default='')
     error = IntegerField(default=0)
+    description = TextField()
 
     class Meta:
         database = db
