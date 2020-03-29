@@ -27,7 +27,9 @@ HEADERS_DOWNLOADS_JOBS = [
 ]
 
 HEADERS_DOWNLOADS_CURRENT = [
+    {'name': 'vaultname', 'label': 'Vault'},
     {'name': 'description', 'label': 'Download Description'},
+    {'name': 'status', 'label': 'Status'},
     {'name': 'progress', 'label': 'Progress'}
 ]
 

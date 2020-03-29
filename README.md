@@ -35,19 +35,17 @@ briefcase dev
 - Upload File to Vault
 - List Archives of a Vault
 - Start an inventory job to request the list of archives of a Vault
-- Download an archive (wip)
+- Download an archive
 - Delete Archive
 
 ## To-do
 
-- [x] Only allow one inventory retrieval job at the same time for each vault
-- [x] [Delete Archive] Add Delete information to archives data table
-- [ ] [Download Archive] Async Download (save state in memory and refresh table)
-- [ ] [Download Archive] Progress Bar when donwload
-- [ ] [Download Archive] Select Destination folder when download
-- [ ] [Download Archive] Avoid to create a new download job if is already one job with status pending
-- [ ] [Download Archive] Update state when download job is expired
+- [ ] [Download Archive] Remove download job
+- [ ] [Download Archive] Configure a destination folder when download
 - [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
+
+## To-do (In the future)
+
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
 - [ ] [System Wide] Flake8

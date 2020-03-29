@@ -340,7 +340,7 @@ class beeglacier(toga.App):
 
     def bg_download(self, vaultname, job_id, file_path_temp, file_path_final):
         job_description = self.glacier_instance.describe_job(vaultname, job_id)
-        
+        job_selected = self.downloadjob_table.selected_row
         if job_description['Completed'] and job_description['StatusCode'] == 'Succeeded':
             
             self._current_downloads[job_id] = {
@@ -349,6 +349,7 @@ class beeglacier(toga.App):
                 'progress': '0%',
                 'vaultname': vaultname
             }
+            self.launch_bg_refresh_downloads()
             
             archive_checksum = job_description['ArchiveSHA256TreeHash']
             
@@ -401,6 +402,8 @@ class beeglacier(toga.App):
                         self._current_downloads[job_id]['progress'] = f'{porcentage}%'
                         print (self._current_downloads[job_id])
 
+                self.launch_bg_refresh_downloads()
+
             os.rename(file_path_temp, file_path_final)
             self._current_downloads[job_id]['status'] = "Downloaded"
             # check archive checksum    
@@ -409,6 +412,7 @@ class beeglacier(toga.App):
             #print(downloaded_checksum)
             #if archive_checksum==downloaded_checksum:
             #   print('ok')
+            self.launch_bg_refresh_downloads()
 
     def callback_row_selected(self, row):
         """ Callback when vault row is selected
@@ -734,6 +738,16 @@ class beeglacier(toga.App):
         else:
             self.archives_table.data = []
 
+    def refresh_current_downloads(self, arg2):
+        data = []
+
+        for key, value in self._current_downloads.items():
+            new_row = { 'job_id': key, **value }
+            data.append(new_row)
+    
+        print (data)
+        self.current_downloads_table.data = data
+
     def create_controls(self):
 
         # Vaults: Box
@@ -985,6 +999,9 @@ class beeglacier(toga.App):
             change, this task is called
         """
         self.add_background_task(self.bg_update_progress_uploads)
+    
+    def launch_bg_refresh_downloads(self):
+        self.add_background_task(self.refresh_current_downloads)
     
     def pre_init(self):
         self.account = Account.getaccount(object)
