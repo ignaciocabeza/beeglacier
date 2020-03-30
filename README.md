@@ -38,17 +38,12 @@ briefcase dev
 - Download an archive
 - Delete Archive
 
-## To-do
-
-- [ ] [Download Archive] Remove download job
-- [ ] [Download Archive] Configure a destination folder when download
-- [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
-
 ## To-do (In the future)
 
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
 - [ ] [System Wide] Flake8
+- [ ] [Download Archive] Create confirm dialog before creating a Archive download Job
 
 ## Beeware
 

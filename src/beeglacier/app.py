@@ -36,7 +36,7 @@ from .utils.aws import Glacier
 from .utils.strings import TEXT
 from .utils.styles import STYLES
 from .models.jobs import Job
-from .extra_impl.OptionContainer import option_enabled
+# from .extra_impl.OptionContainer import option_enabled
 
 global_controls = Controls()
 
@@ -429,7 +429,7 @@ class beeglacier(toga.App):
         self._update_control_label('Vaults_TopNav_DeleteVault', delete_vault_text)
         delete_btn = global_controls.get_control_by_name('Vaults_TopNav_DeleteVault')
         delete_btn.enabled = True
-        option_enabled(self.container, 1, True)
+        #option_enabled(self.container, 1, True)
 
     def callback_row_selected_archive(self, archive):
         if not archive:
@@ -454,31 +454,18 @@ class beeglacier(toga.App):
         values = self.account_form.get_values()
         Account.saveaccount(values)
 
-    def on_btn_download_archive(self, button):
-        #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/glacier.html#Glacier.Client.get_job_output
-        archive = self.archives_table.selected_row
-        
-        file_path_final = '/users/ignaciocabeza/downloads/' + archive['archivedescription'] 
-        file_path_temp = os.path.join(file_path_final, '.downloading')
-
-        vault = self.vaults_table.selected_row
-        vaultname = vault['vaultname']
-
-        if archive:
-            jobs = Job.select().where(
-                (Job.archiveid == archive['archiveid']) &
-                (Job.done == 0)
-            ).execute()
-
-            if jobs:
-                job_id = jobs[0].id
-
     def on_download_archive_from_job(self, button):
         job_selected = self.downloadjob_table.selected_row
         
+        input_download_folder = global_controls.get_control_by_name('Vaults_Download_Folder')
+        folder_destination = input_download_folder.value
+        if not os.path.exists(folder_destination):
+            self.main_window.error_dialog('Error', 'Select destination folder first!')
+            return False
+
         job_id = job_selected['job_id']
-        file_path_final = '/users/ignaciocabeza/downloads/' + job_selected['description'] 
-        file_path_temp = os.path.join('/users/ignaciocabeza/downloads/', file_path_final + '.downloading')
+        file_path_final = os.path.join(folder_destination, job_selected['description'])
+        file_path_temp = os.path.join(folder_destination, file_path_final + '.downloading')
         vaultname = job_selected['vaultname']
 
         job_description = self.glacier_instance.describe_job(vaultname, job_id)
@@ -502,6 +489,17 @@ class beeglacier(toga.App):
                 file_path_temp=file_path_temp,
                 file_path_final=file_path_final,
             )
+    
+    def on_mark_as_done(self, button):
+        job_selected = self.downloadjob_table.selected_row
+        job_id = job_selected['job_id']
+        status = {'Completed': True, 'StatusCode': 'DeletedByUser'}
+        jobdb = Job.update(
+                response = json.dumps(status),
+                done = 1,
+                updated_at = get_timestamp(),
+            ).where(Job.job_id == job_id).execute()
+        self.refresh_option_downloads()
     
     def on_btn_request_download_job(self, button):
         archive = self.archives_table.selected_row
@@ -598,6 +596,12 @@ class beeglacier(toga.App):
 
         if fullpath and vaultname:
             self._execute_bg_task(self.bg_upload_file, vaultname=vaultname, fullpath=fullpath)
+
+    def on_set_folderpath_destination(self, button):
+        folderpath = self.main_window.select_folder_dialog("Select Download Folder")
+        input_download_folder = global_controls.get_control_by_name('Vaults_Download_Folder')
+        if folderpath:
+            input_download_folder.value = folderpath[0]
 
     def on_searchfile_btn(self, button):
         filepath = self.main_window.open_file_dialog("Select File to upload")
@@ -889,9 +893,9 @@ class beeglacier(toga.App):
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
 
         # VaultDetail_DownloadArchive: Button
-        self.btn_download_archive = toga.Button('Download', enabled=False, on_press=self.on_btn_download_archive)
-        self.archive_download_box.add(self.btn_download_archive)
-        global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
+        #self.btn_download_archive = toga.Button('Download', enabled=False, on_press=self.on_btn_download_archive)
+        #self.archive_download_box.add(self.btn_download_archive)
+        #global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
 
         # VaultDetail_DeleteArchive: Button
         self.btn_delete_archive = toga.Button('Delete', enabled=False, on_press=self.on_delete_archive)
@@ -952,6 +956,16 @@ class beeglacier(toga.App):
         self.onprogress_box.add(self.btn_abort_upload)
         global_controls.add('OnProgress_AbortUpload', self.btn_abort_upload.id)
 
+        # DownloadBox
+        # -- downloadjob_table
+        # -- download_buttons_box
+        # ---- Download Archive
+        # ---- Delete Job
+        # -- DownloadFolderBox
+        # ---- Input Folder Selected
+        # ---- Btn select folder open dialog
+        # -- Table Current downloads
+
         # DownloadBox: Box (Inside Option Download)
         self.downloads_box = toga.Box(style=STYLES['OPTION_BOX'])
         global_controls.add('DownloadBox', self.downloads_box.id)
@@ -961,20 +975,42 @@ class beeglacier(toga.App):
         self.downloads_box.add(self.downloadjob_table.getbox())
         global_controls.add_from_controls(self.downloadjob_table.getcontrols(),'DownloadBox_TableJobs_')
 
-        # OnProgress_ResumeUpload: Button
-        # TODO: fix on_press: is wrong...
+        # DownloadButtonsBox
+        self.downloads_buttons_box = toga.Box(style=Pack(direction=ROW, padding_top=5))
+        global_controls.add('DownloadButtonsBox', self.downloads_buttons_box.id)
+
+        # DownloadButtonsBox: Download Archive
         self.btn_download_rom_job = toga.Button('Download archive from Job', on_press=self.on_download_archive_from_job)
-        self.downloads_box.add(self.btn_download_rom_job)
+        self.downloads_buttons_box.add(self.btn_download_rom_job)
         global_controls.add('DownloadBox_BtnDownload', self.btn_download_rom_job.id)
 
+        # DownloadButtonsBox: Delete Job
+        self.btn_mark_job_as_done = toga.Button('Mark job as done', on_press=self.on_mark_as_done)
+        self.downloads_buttons_box.add(self.btn_mark_job_as_done)
+        global_controls.add('DownloadBox_BtnMarkAsDone', self.btn_mark_job_as_done.id)
+
+         # DownloadFolderBox
+        self.downloads_folder_box = toga.Box(style=Pack(direction=ROW, padding_top=5))
+        global_controls.add('DownloadFolderBox', self.downloads_folder_box.id)
+
+        # Vaults_Download_Folder: TextInput
+        self.folder_path = toga.TextInput(readonly=True, style=Pack(flex=2))
+        self.folder_path.value = ''
+        self.downloads_folder_box.add(self.folder_path)
+        global_controls.add('Vaults_Download_Folder', self.folder_path.id)
+
+        # Button for open select folder dialog
+        self.btn_dialog_select_folder = toga.Button('...', on_press=self.on_set_folderpath_destination)
+        self.downloads_folder_box.add(self.btn_dialog_select_folder)
+        global_controls.add('DownloadBox_BtnOpenDialogSelectFolder', self.btn_dialog_select_folder.id)
+
+        self.downloads_box.add(self.downloads_buttons_box)
+        self.downloads_box.add(self.downloads_folder_box)
+
         # DownloadBox > TableCurrent
-        self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT, height=200)
+        self.current_downloads_table = Table(headers=HEADERS_DOWNLOADS_CURRENT, height=175)
         self.downloads_box.add(self.current_downloads_table.getbox())
         global_controls.add_from_controls(self.current_downloads_table.getcontrols(),'DownloadBox_TableCurrent_')
-
-        # JobsBox: Box (Inside Option Download)
-        # self.jobs_box = toga.Box(style=STYLES['OPTION_BOX'])
-        # global_controls.add('JobsBox', self.jobs_box.id)
 
         # Main -> OptionContainer: OptionContainer
         self.container = toga.OptionContainer(style=Pack(padding=10, direction=COLUMN), on_select=self.on_select_option)
@@ -988,8 +1024,7 @@ class beeglacier(toga.App):
         self.main_box.add(self.container)
         
         # disable vaults detail option
-        option_enabled(self.container, 1, False)
-
+        #option_enabled(self.container, 1, False)
 
         global_controls.add('Main_OptionContainer', self.container.id)
         
