@@ -446,8 +446,8 @@ class beeglacier(toga.App):
         self._update_control_label('VaultDetail_PendingDownload', text)
 
         # enable or diasable dwlbtn
-        dwlbtn = global_controls.get_control_by_name('VaultDetail_DownloadArchive')
-        dwlbtn.enabled = len(jobs) > 0
+        #dwlbtn = global_controls.get_control_by_name('VaultDetail_DownloadArchive')
+        #dwlbtn.enabled = len(jobs) > 0
 
     def callback_create_account(self, button):
         # called after pressed save button
@@ -720,7 +720,8 @@ class beeglacier(toga.App):
         done_jobs = Job.select().where(
                     (Job.id == selected_vault_name) &
                     (Job.done == 1) &
-                    (Job.error == 0)
+                    (Job.error == 0) &
+                    (Job.job_type == 'inventory')
                   ).order_by(Job.created_at.desc()).execute()
         
         print(len(done_jobs))
