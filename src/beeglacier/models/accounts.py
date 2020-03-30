@@ -45,5 +45,4 @@ class Account(Model):
             update.execute()
         else:
             # new
-            new = Account(**account)
-            new.save()
+            new = Account.create(**account)

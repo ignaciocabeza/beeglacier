@@ -46,6 +46,7 @@ pipenv run dev
 
 ## To-do
 
+- [ ] Create DB Scheme on first run
 - [ ] [Download Archive] Select type of download when you start a archive donwload job
 - [ ] [System Wide] Show how much cost($) each action (Download, Upload, etc)
 - [ ] [System Wide] Flake8

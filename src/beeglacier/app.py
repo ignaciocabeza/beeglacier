@@ -24,6 +24,7 @@ from .settings import (
     HEADERS_JOBS
 )
 from .models import get_timestamp
+from .models.utils import create_tables
 from .models.accounts import Account
 from .models.deleted_archives import DeletedArchive
 from .models.jobs import Job
@@ -453,6 +454,7 @@ class beeglacier(toga.App):
         # called after pressed save button
         values = self.account_form.get_values()
         Account.saveaccount(values)
+        self.setup_glacier()
 
     def on_download_archive_from_job(self, button):
         job_selected = self.downloadjob_table.selected_row
@@ -1039,8 +1041,9 @@ class beeglacier(toga.App):
     def launch_bg_refresh_downloads(self):
         self.add_background_task(self.refresh_current_downloads)
     
-    def pre_init(self):
+    def setup_glacier(self):
         self.account = Account.getaccount(object)
+        
         if not self.account:
             return False
         else:
@@ -1051,13 +1054,22 @@ class beeglacier(toga.App):
                 self.account.region_name
             )
 
-        # register an observable for current uploads status change
-        self.glacier_instance.subscribe('current_uploads_change', 
-                                        self.launch_bg_update_onprogress)
+            # register an observable for current uploads status change
+            self.glacier_instance.subscribe('current_uploads_change', 
+                                            self.launch_bg_update_onprogress)
+
+        return True
+
+    def pre_init(self):
+        create_tables()
+
+        return_val = self.setup_glacier()
+
+        return return_val
 
     def startup(self): 
         # setup
-        self.pre_init()
+        account_exists = self.pre_init()
 
         # Main: MainWindow
         self.main_window = toga.MainWindow(title="BeeGlacier", size=(800, 540))
@@ -1070,11 +1082,13 @@ class beeglacier(toga.App):
         # Create all controls
         self.create_controls()
 
-        #self._execute_bg_task(self.bg_tasks_checker)
-
         # Show Main Window
         self.main_window.content = self.main_box
         self.main_window.show()
+
+        if not account_exists:
+            self.main_window.error_dialog("Info", "Configure AWS Credentials")
+            return
 
         # get last retrieve of vaults from database
         vaults_db = Vault.select() \
