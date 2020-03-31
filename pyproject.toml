@@ -4,14 +4,14 @@ requires = ["briefcase"]
 [tool.briefcase]
 project_name = "beeglacier"
 bundle = "com.ignaciocabeza"
-version = "0.0.1"
+version = "0.1.0"
 url = "https://ignaciocabeza.com/beeglacier"
 license = "Other"
 author = 'Ignacio Cabeza'
 author_email = "ignaciocabeza@gmail.com"
 
 [tool.briefcase.app.beeglacier]
-formal_name = "beeglacier"
+formal_name = "Bee Glacier"
 description = "Amazon Glacier Backups"
 icon = "src/beeglacier/resources/beeglacier"
 sources = ['src/beeglacier']
