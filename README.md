@@ -1,10 +1,12 @@
 # BeeGlacier
 
-This is an  application for managing Amazon Glacier Storage made with Beeware.git
+This is an  application for managing Amazon Glacier Storage made with Beeware. *Use at your own risk*.
 
-## Dowload
+## Download
 
-Sorry, the app is in development and it's not available for download as a `.dmg` or as an `.app`
+[v0.1](https://github.com/ignaciocabeza/beeglacier/releases/download/v0.1.0/beeglacier-v010.zip) 
+
+*Only for mac, build in other platforms are possible in the future*
 
 ### List of vaults
 
