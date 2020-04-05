@@ -12,7 +12,7 @@ from . import db, get_timestamp
 
 
 class Vault(Model):
-    account_id = CharField(primary_key=True)
+    account_id = CharField()
     updated_at = TimestampField(default=get_timestamp)
     response = TextField()
     

@@ -11,7 +11,7 @@ from . import db, get_timestamp
 class DeletedArchive(Model):
     vaultname = CharField()
     archiveid = TextField()
-    response = TextField()
+    response = TextField(null=True)
     deleted_at = TimestampField(default=get_timestamp)
     
     class Meta:

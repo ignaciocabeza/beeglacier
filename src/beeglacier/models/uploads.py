@@ -14,7 +14,7 @@ class Upload(Model):
     account_id = CharField()
     filepath = CharField()
     vault = CharField()
-    response = TextField()
+    response = TextField(null=True)
     status = IntegerField(default=0, choices=STATUS_CHOICES)
     parts = IntegerField(default=0)
     parts_done = IntegerField(default=0)

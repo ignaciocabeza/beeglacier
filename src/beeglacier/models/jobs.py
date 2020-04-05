@@ -15,12 +15,12 @@ class Job(Model):
     job_id = CharField()
     job_type = CharField()
     created_at = TimestampField(default=get_timestamp)
-    updated_at = TimestampField()
+    updated_at = TimestampField(null=True)
     done = IntegerField(default=0)
-    response = TextField()
+    response = TextField(null=True)
     archiveid = TextField(default='')
     error = IntegerField(default=0)
-    description = TextField()
+    description = TextField(null=True)
 
     class Meta:
         database = db
