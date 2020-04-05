@@ -4,7 +4,7 @@ This is an  application for managing Amazon Glacier Storage made with Beeware. *
 
 ## Download
 
-[v0.1](https://github.com/ignaciocabeza/beeglacier/releases/download/v0.1.0/beeglacier-v010.zip) 
+[v0.1.1](https://github.com/ignaciocabeza/beeglacier/releases/download/v0.1.1/beeglacier-v011.zip) 
 
 *Only for mac, build in other platforms are possible in the future*
 
