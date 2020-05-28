@@ -46,6 +46,8 @@ GitPython = "==3.0.2"
 Jinja2 = "==3.0.0a1"
 MarkupSafe = "==1.1.1"
 peewee = "*"
+toga-winforms = "*"
+pythonnet = "*"
 
 [requires]
 python_version = "3.7"

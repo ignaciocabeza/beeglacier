@@ -433,7 +433,10 @@ class beeglacier(toga.App):
         #option_enabled(self.container, 1, True)
 
     def callback_row_selected_archive(self, archive):
+        delete_btn = global_controls.get_control_by_name('VaultDetail_DeleteArchive')
+        
         if not archive:
+            delete_btn.enabled = False
             return
 
         text = TEXT['LABEL_SELECTED_ARCHIVE'] % (archive['archivedescription'])
@@ -447,8 +450,7 @@ class beeglacier(toga.App):
         self._update_control_label('VaultDetail_PendingDownload', text)
 
         # enable or diasable dwlbtn
-        #dwlbtn = global_controls.get_control_by_name('VaultDetail_DownloadArchive')
-        #dwlbtn.enabled = len(jobs) > 0
+        delete_btn.enabled = True
 
     def callback_create_account(self, button):
         # called after pressed save button
@@ -894,11 +896,6 @@ class beeglacier(toga.App):
         self.btn_request_download_job = toga.Button('Start Download Archive Job', on_press=self.on_btn_request_download_job)
         self.archive_download_box.add(self.btn_request_download_job)
         global_controls.add('VaultDetail_StartDownloadArchiveJobButton', self.btn_request_download_job.id)
-
-        # VaultDetail_DownloadArchive: Button
-        #self.btn_download_archive = toga.Button('Download', enabled=False, on_press=self.on_btn_download_archive)
-        #self.archive_download_box.add(self.btn_download_archive)
-        #global_controls.add('VaultDetail_DownloadArchive', self.btn_download_archive.id)
 
         # VaultDetail_DeleteArchive: Button
         self.btn_delete_archive = toga.Button('Delete', enabled=False, on_press=self.on_delete_archive)
