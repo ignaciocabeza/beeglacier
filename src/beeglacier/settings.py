@@ -46,3 +46,6 @@ STATUS_CHOICES = [
     (3, 'Completed'),
     (4, 'Error')
 ]
+
+UPLOAD_PART_SIZE = 10
+DOWNLOAD_PART_SIZE = 10

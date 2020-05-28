@@ -21,7 +21,9 @@ from .settings import (
     HEADERS_ON_PROGRESS,
     HEADERS_DOWNLOADS_JOBS,
     HEADERS_DOWNLOADS_CURRENT,
-    HEADERS_JOBS
+    HEADERS_JOBS,
+    UPLOAD_PART_SIZE,
+    DOWNLOAD_PART_SIZE
 )
 from .models import get_timestamp
 from .models.utils import create_tables
@@ -128,7 +130,7 @@ class beeglacier(toga.App):
         glacier = self._connect_glacier()
 
         filename = ntpath.basename(path)
-        partsize = 4
+        partsize = UPLOAD_PART_SIZE
 
         upload_id = glacier.create_multipart_upload(vault, filename, partsize, path)
 
@@ -321,7 +323,7 @@ class beeglacier(toga.App):
                         vault=vault, 
                         path=path,
                         desc=desc,
-                        part_size=4,
+                        part_size=UPLOAD_PART_SIZE,
                         num_threads=4, 
                         upload_id=upload_id
             )
@@ -360,7 +362,7 @@ class beeglacier(toga.App):
             size = job_description['ArchiveSizeInBytes']
             #print (size)
             # 4mb parts
-            part_size = 1024 * 1024 * 1
+            part_size = 1024 * 1024 * DOWNLOAD_PART_SIZE
 
             # amount of parts
             parts = int(size) // part_size + 1
@@ -434,7 +436,7 @@ class beeglacier(toga.App):
 
     def callback_row_selected_archive(self, archive):
         delete_btn = global_controls.get_control_by_name('VaultDetail_DeleteArchive')
-        
+
         if not archive:
             delete_btn.enabled = False
             return
