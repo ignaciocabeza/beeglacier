@@ -4,7 +4,7 @@ requires = ["briefcase"]
 [tool.briefcase]
 project_name = "beeglacier"
 bundle = "com.ignaciocabeza"
-version = "0.1.1"
+version = "0.1.2"
 url = "https://ignaciocabeza.com/beeglacier"
 license = "Other"
 author = 'Ignacio Cabeza'
